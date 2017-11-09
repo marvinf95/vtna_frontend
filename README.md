@@ -13,3 +13,4 @@ Forschungspraktikum at West Institute
 | Adam Mtarji       | amtarji@uni-koblenz.de       |
 | Kim Ballmes       | ballmes@uni-koblenz.de       |
 | Marvin Forster    | marvinforster@uni-koblenz.de |
+| Philipp Töws      | ptoews@uni-koblenz.de        |
