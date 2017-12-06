@@ -9,3 +9,4 @@ vtna/vtna/tests/__pycache__/
 */.coverage
 .eggs/
 venv/
+cover/
