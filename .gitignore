@@ -4,3 +4,6 @@
 .idea/
 vtna/__pycache__/
 vtna/tests/__pycache__/
+vtna/vtna/__pycache__/
+vtna/vtna/tests/__pycache__/
+*/.coverage
