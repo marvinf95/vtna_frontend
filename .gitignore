@@ -10,3 +10,4 @@ vtna/vtna/tests/__pycache__/
 .eggs/
 venv/
 cover/
+.ipynb_checkpoints/
