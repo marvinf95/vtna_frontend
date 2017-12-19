@@ -5,6 +5,8 @@ import urllib.error
 import fileupload
 import IPython.display as ipydisplay
 from ipywidgets import widgets
+import matplotlib.pyplot as plt
+import networkx as nx
 
 import vtna.data_import
 import vtna.graph
@@ -12,6 +14,7 @@ import vtna.layout
 import vtna.utility
 
 
+# Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
@@ -26,7 +29,10 @@ class UIDataUploadManager(object):
                  local_metadata_file_upload: fileupload.FileUploadWidget,
                  network_metadata_upload_button: widgets.Button,
                  metadata_text: widgets.Text,
-                 metadata_output: widgets.Output
+                 metadata_output: widgets.Output,
+                 # Metadata configuration widgets
+                 metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
+                 column_configuration_layout: widgets.Layout  # Layout, for each separate column configuration
                  ):
         self.__local_graph_file_upload = local_graph_file_upload
         self.__network_graph_upload_button = network_graph_upload_button
@@ -37,6 +43,9 @@ class UIDataUploadManager(object):
         self.__network_metadata_upload_button = network_metadata_upload_button
         self.__metadata_data_text = metadata_text
         self.__metadata_data_output = metadata_output
+
+        self.__metadata_configuration_vbox = metadata_configuration_vbox
+        self.__column_configuration_layout = column_configuration_layout
 
         self.__edge_list = None
         self.__metadata = None
@@ -122,12 +131,12 @@ class UIDataUploadManager(object):
             try:
                 with open(w.filename, 'wb') as f:
                     f.write(w.data)
-                    self.__graph_data_text.value = w.filename
+                    self.__metadata_data_text.value = w.filename
                 # Load metadata
-                metadata_table = vtna.data_import.MetadataTable(w.filename)
+                self.__metadata = vtna.data_import.MetadataTable(w.filename)
                 self.__display_metadata_upload_summary(w.filename)
                 # Display UI for configuring metadata
-                open_column_config(metadata_table)
+                self.__open_column_config()
             # TODO: Exception catching is not exhaustive yet
             except FileNotFoundError:
                 error_msg = f'File {w.filename} does not exist'
@@ -141,9 +150,9 @@ class UIDataUploadManager(object):
         def handle_network_upload_metadata(change):
             try:
                 url = self.__metadata_data_text.value
-                metadata_table = vtna.data_import.MetadataTable(url)
+                self.__metadata = vtna.data_import.MetadataTable(url)
                 self.__display_metadata_upload_summary(url)
-                open_column_config(metadata_table)
+                self.__open_column_config()
             # TODO: Exception catching is not exhaustive yet
             except urllib.error.HTTPError:
                 error_msg = f'Could not access URL {url}'
@@ -175,10 +184,24 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print_metadata_stats(filename, self.__metadata)
 
+    def __open_column_config(self):
+        """
+        Shows menu to configure metadata.
+        Currently only supports setting of names.
+        Changes are made to Text widgets in w_attribute_settings.children
+        """
+        # Load some default settings
+        self.__metadata_configuration_vbox.children = []
 
-w_metadata_settings_left = None  # type: widgets.VBox
-
-box_layout_ = None  # type: widgets.Layout
+        for name in self.__metadata.get_attribute_names():
+            w_col_name = widgets.Text(
+                value='{}'.format(name),
+                placeholder='New Column Name',
+                description=f'Column {name}:',
+                disabled=False
+            )
+            self.__metadata_configuration_vbox.children += \
+                (widgets.VBox([w_col_name], layout=self.__column_configuration_layout), )
 
 
 def print_edge_stats(filename: str, edges: typ.List[vtna.data_import.TemporalEdge]):
@@ -196,20 +219,54 @@ def print_metadata_stats(filename: str, metadata: vtna.data_import.MetadataTable
             print(f'- {category}')
 
 
-def open_column_config(metadata: vtna.data_import.MetadataTable):
-    """
-    Shows menu to configure metadata.
-    Currently only supports setting of names.
-    Changes are made to Text widgets in w_attribute_settings.children
-    """
-    # Load some default settings
-    w_metadata_settings_left.children = []
+class UIGraphDisplayManager(object):
+    DEFAULT_UPDATE_DELTA = 20
 
-    for name in enumerate(metadata.get_attribute_names()):
-        w_col_name = widgets.Text(
-            value='{}'.format(name),
-            placeholder='New Column Name',
-            description=f'Column {name}:',
-            disabled=False
-        )
-        w_metadata_settings_left.children.append(widgets.VBox([w_col_name], layout=box_layout_))
+    def __init__(self,
+                 time_slider: widgets.IntSlider,
+                 play: widgets.Play
+                 ):
+        self.__time_slider = time_slider
+        self.__play = play
+
+        self.__temp_graph = None  # type: vtna.graph.TemporalGraph
+        self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
+        self.__granularity = None  # type: int
+        self.__layout = None  # type: typ.List[typ.Dict[int, typ.Tuple[float, float]]]
+
+    def init_temporal_graph(self,
+                            edge_list: typ.List[vtna.data_import.TemporalEdge],
+                            metadata: vtna.data_import.MetadataTable,
+                            granularity: int
+                            ):
+        self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
+        # TODO: Allow selection of layout
+        self.__layout = vtna.layout.static_spring_layout(self.__temp_graph, n_iterations=25)
+
+        self.__time_slider.min = 0
+        self.__time_slider.max = len(self.__temp_graph)
+        self.__time_slider.value = 0
+
+        self.__play.min = 0
+        self.__play.max = len(self.__temp_graph)
+        self.__play.value = 0
+
+        self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+    def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
+        return self.__temp_graph
+
+    # TODO: allow selection of layout
+    def build_display_current_graph(self, fig_num: int) -> typ.Callable[[int], None]:
+        def display_current_graph(current_time_step: int):
+            graph = self.__temp_graph[current_time_step]
+            plt.figure(fig_num, figsize=(8, 8))
+            axes = plt.gca()
+            axes.set_xlim((-1.2, 1.2))
+            axes.set_ylim((-1.2, 1.2))
+            nxgraph = vtna.utility.graph2networkx(graph)
+            nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
+                             node_color='green')
+            axes.set_title(f'time step: {current_time_step}')
+            plt.show()
+        return display_current_graph
