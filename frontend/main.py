@@ -11,58 +11,100 @@ import vtna.graph
 import vtna.layout
 import vtna.utility
 
-NETWORK_UPLOAD_PLACEHOLDER = 'www.url_to_file.de (Allowed types: .zip, .txt)'
-LOCAL_UPLOAD_PLACEHOLDER = 'Allowed types: .zip, .txt'
 
-w_upload_local_nf = None  # type: fileupload.FileUploadWidget
-w_upload_local_af = None  # type: fileupload.FileUploadWidget
-w_upload_network_nf = None  # type: widgets.Button
-w_upload_network_af = None  # type: widgets.Button
+NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'
+LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'
 
-w_file_graph_data = None  # type: widgets.Text
-w_file_metadata = None  # type: widgets.Text
 
-w_out_graph_data = None  # type: widgets.Output
-w_out_metadata = None  # type: widgets.Output
+class UIDataUploadManager(object):
+    def __init__(self,
+                 # Graph upload widgets
+                 local_graph_file_upload: fileupload.FileUploadWidget,
+                 network_graph_upload_button: widgets.Button,
+                 graph_data_text: widgets.Text,
+                 graph_data_output: widgets.Output,
+                 # Metadata upload widgets
+                 local_metadata_file_upload: fileupload.FileUploadWidget,
+                 network_metadata_upload_button: widgets.Button,
+                 metadata_text: widgets.Text,
+                 metadata_output: widgets.Output
+                 ):
+        self.__local_graph_file_upload = local_graph_file_upload
+        self.__network_graph_upload_button = network_graph_upload_button
+        self.__graph_data_text = graph_data_text
+        self.__graph_data_output = graph_data_output
+
+        self.__local_metadata_file_upload = local_metadata_file_upload
+        self.__network_metadata_upload_button = network_metadata_upload_button
+        self.__metadata_data_text = metadata_text
+        self.__metadata_data_output = metadata_output
+
+        self.__edge_list = None
+        self.__metadata = None
+
+    def get_edge_list(self) -> typ.List[vtna.data_import.TemporalEdge]:
+        return self.__edge_list
+
+    def build_on_toggle_upload_type(self) -> typ.Callable:
+        # TODO: What is the type of change? Dictionary?
+        def on_toogle_upload_type(change):
+            # Switch to network upload option
+            if change['new'] == 'Network':
+                # Hide local upload widgets
+                self.__local_graph_file_upload.layout.display = 'none'
+                self.__local_metadata_file_upload.layout.display = 'none'
+                # Show network upload widgets
+                self.__network_graph_upload_button.layout.display = 'inline'
+                self.__network_metadata_upload_button.layout.display = 'inline'
+                # Enable text input for URLs
+                self.__graph_data_text.disabled = False
+                self.__graph_data_text.placeholder = NETWORK_UPLOAD_PLACEHOLDER
+                self.__metadata_data_text.disabled = False
+                self.__metadata_data_text.placeholder = NETWORK_UPLOAD_PLACEHOLDER
+            # Switch to local upload option
+            else:
+                # Show local upload widgets
+                self.__local_graph_file_upload.layout.display = 'inline'
+                self.__local_metadata_file_upload.layout.display = 'inline'
+                # Hide network upload widgets
+                self.__network_graph_upload_button.layout.display = 'none'
+                self.__network_metadata_upload_button.layout.display = 'none'
+                # Disable text input for local upload
+                self.__graph_data_text.disabled = True
+                self.__graph_data_text.placeholder = LOCAL_UPLOAD_PLACEHOLDER
+                self.__metadata_data_text.disabled = True
+                self.__metadata_data_text.placeholder = LOCAL_UPLOAD_PLACEHOLDER
+        return on_toogle_upload_type
+
+    def handle_local_upload_graph_data(change):
+        # What does the w stand for?
+        w = change['owner']
+        try:
+            with open(w.filename, 'wb') as f:
+                f.write(w.data)
+                w_file_graph_data.value = 'Uploaded `{}` ({:.2f} kB)'.format(w.filename, len(w.data) / 2 ** 10)
+
+            edge_list = vtna.data_import.read_edge_table(w.filename)
+
+            with w_out_graph_data:
+                ipydisplay.clear_output()
+                print_edge_stats(w.filename, edge_list)
+        # TODO: Exception catching is not exhaustive yet
+        except FileNotFoundError:
+            w_file_graph_data.value = f'File {w.filename} does not exist'
+            with w_out_graph_data:
+                ipydisplay.clear_output()
+                print(f'\x1b[31m{w_file_graph_data.value}\x1b[0m')
+        except ValueError:
+            w_file_graph_data.value = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
+            with w_out_graph_data:
+                ipydisplay.clear_output()
+                print(f'\x1b[31m{w_file_graph_data.value}\x1b[0m')
+
 
 w_metadata_settings_left = None  # type: widgets.VBox
 
 box_layout_ = None  # type: widgets.Layout
-
-metadata_table = None  # type: vtna.data_import.MetadataTable
-edge_list = None  # type: typ.List[vtna.data_import.TemporalEdge]
-
-
-def on_toogle_upload_type(change):
-    global w_upload_local_nf
-    global w_upload_local_af
-    global w_upload_network_nf
-    global w_upload_network_af
-    global w_file_graph_data
-    global w_file_metadata
-
-    if change['new'] == 'Network':
-        w_upload_local_nf.layout.display = 'none'
-        w_upload_local_af.layout.display = 'none'
-
-        w_upload_network_nf.layout.display = 'inline'
-        w_upload_network_af.layout.display = 'inline'
-
-        w_file_metadata.disabled = False
-        w_file_metadata.placeholder = NETWORK_UPLOAD_PLACEHOLDER
-        w_file_graph_data.disabled = False
-        w_file_graph_data.placeholder = NETWORK_UPLOAD_PLACEHOLDER
-    else:
-        w_upload_local_nf.layout.display = 'inline'
-        w_upload_local_af.layout.display = 'inline'
-
-        w_upload_network_nf.layout.display = 'none'
-        w_upload_network_af.layout.display = 'none'
-
-        w_file_metadata.disabled = True
-        w_file_metadata.placeholder = LOCAL_UPLOAD_PLACEHOLDER
-        w_file_graph_data.disabled = True
-        w_file_graph_data.placeholder = LOCAL_UPLOAD_PLACEHOLDER
 
 
 def print_edge_stats(filename, edges):
@@ -78,33 +120,7 @@ def print_metadata_stats(metadata):
 
 # why the underscore?
 # Upload of temporal graph data via local upload
-def handle_local_upload_graph_data(change):
-    global edge_list
-    global w_out_graph_data
 
-    # What does the w stand for?
-    w = change['owner']
-    try:
-        with open(w.filename, 'wb') as f:
-            f.write(w.data)
-            w_file_graph_data.value = 'Uploaded `{}` ({:.2f} kB)'.format(w.filename, len(w.data) / 2 ** 10)
-
-        edge_list = vtna.data_import.read_edge_table(w.filename)
-
-        with w_out_graph_data:
-            ipydisplay.clear_output()
-            print_edge_stats(w.filename, edge_list)
-    # TODO: Exception catching is not exhaustive yet
-    except FileNotFoundError:
-        w_file_graph_data.value = f'File {w.filename} does not exist'
-        with w_out_graph_data:
-            ipydisplay.clear_output()
-            print(f'\x1b[31m{w_file_graph_data.value}\x1b[0m')
-    except ValueError:
-        w_file_graph_data.value = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
-        with w_out_graph_data:
-            ipydisplay.clear_output()
-            print(f'\x1b[31m{w_file_graph_data.value}\x1b[0m')
 
 
 # Upload of temporal graph data via network
