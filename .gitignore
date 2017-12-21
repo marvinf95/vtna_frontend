@@ -11,3 +11,6 @@ vtna/vtna/tests/__pycache__/
 venv/
 cover/
 .ipynb_checkpoints/
+frontend/*.csv
+frontend/*.txt
+frontend/*.dat
