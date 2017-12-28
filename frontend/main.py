@@ -60,8 +60,8 @@ class UIDataUploadManager(object):
 
         self.__graph_data_file_name = None
 
-        self.__edge_list = None
-        self.__metadata = None
+        self.__edge_list = None  # type: typ.List[vtna.data_import.TemporalEdge]
+        self.__metadata = None  # type: vtna.data_import.MetadataTable
 
         self.__granularity = None
 
@@ -121,7 +121,7 @@ class UIDataUploadManager(object):
                 # Import graph as edge list via vtna
                 self.__edge_list = vtna.data_import.read_edge_table(w.filename)
                 # Display summary of loaded file to __graph_data_output
-                self.__display_graph_upload_summary(w.filename)
+                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -141,7 +141,7 @@ class UIDataUploadManager(object):
                 # Save file name of graph data
                 self.__graph_data_file_name = url
                 self.__edge_list = vtna.data_import.read_edge_table(url)
-                self.__display_graph_upload_summary(url)
+                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -163,7 +163,7 @@ class UIDataUploadManager(object):
                     self.__metadata_data_text.value = w.filename
                 # Load metadata
                 self.__metadata = vtna.data_import.MetadataTable(w.filename)
-                self.__display_metadata_upload_summary(w.filename)
+                self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
             # TODO: Exception catching is not exhaustive yet
@@ -181,7 +181,7 @@ class UIDataUploadManager(object):
             try:
                 url = self.__metadata_data_text.value
                 self.__metadata = vtna.data_import.MetadataTable(url)
-                self.__display_metadata_upload_summary(url)
+                self.__display_metadata_upload_summary()
                 self.__open_column_config()
             # TODO: Exception catching is not exhaustive yet
             except urllib.error.HTTPError:
@@ -199,13 +199,13 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_graph_upload_summary(self, filename: str, prepend_msgs: typ.List[str]=None):
+    def __display_graph_upload_summary(self, prepend_msgs: typ.List[str]=None):
         with self.__graph_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
-            print_edge_stats(filename, self.__edge_list)
+            print_edge_stats(self.__edge_list)
             # Collect/Generate data for edge histogram plot
             update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
             earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
@@ -231,10 +231,14 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_metadata_upload_summary(self, filename: str):
+    def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str]=None):
         with self.__metadata_data_output:
             ipydisplay.clear_output()
-            print_metadata_stats(filename, self.__metadata)
+            if prepend_msgs is not None:
+                for msg in prepend_msgs:
+                    print(msg)
+            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata))
+            ipydisplay.display_html(table)  # A tuple is expected as input, but then it won't work for some reason...
 
     def __open_column_config(self):
         """
@@ -244,16 +248,44 @@ class UIDataUploadManager(object):
         """
         # Load some default settings
         self.__metadata_configuration_vbox.children = []
+        current_names = sorted(self.__metadata.get_attribute_names())
+        column_text_fields = list()  # type: typ.List[widgets.Text]
 
-        for name in self.__metadata.get_attribute_names():
+        for name in current_names:
             w_col_name = widgets.Text(
                 value='{}'.format(name),
                 placeholder='New Column Name',
                 description=f'Column {name}:',
                 disabled=False
             )
+            column_text_fields.append(w_col_name)
             self.__metadata_configuration_vbox.children += \
                 (widgets.VBox([w_col_name], layout=self.__column_configuration_layout),)
+
+        rename_button = widgets.Button(
+            description='Rename',
+            disabled=False,
+            button_style='primary',
+            tooltip='Rename columns',
+        )
+        self.__metadata_configuration_vbox.children += (rename_button,)
+
+        def apply_rename(_):
+            to_rename = dict()
+            for i in range(len(current_names)):
+                if current_names[i] != column_text_fields[i].value:
+                    to_rename[current_names[i]] = column_text_fields[i].value
+            msgs = list()
+            try:
+                self.__metadata.rename_attributes(to_rename)
+                for i, new_name in enumerate(map(lambda f: f.value, column_text_fields)):
+                    current_names[i] = new_name
+            except vtna.data_import.DuplicateTargetNamesError as e:
+                msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} are duplicates\x1b[0m')
+            except vtna.data_import.RenamingTargetExistsError as e:
+                msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} already exist\x1b[0m')
+            self.__display_metadata_upload_summary(prepend_msgs=msgs)
+        rename_button.on_click(apply_rename)
 
     def __open_graph_config(self):
         earliest, latest = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
@@ -284,7 +316,7 @@ class UIDataUploadManager(object):
             else:
                 self.__granularity = granularity_bounded_int_text.value
                 self.__run_button.disabled = False
-            self.__display_graph_upload_summary(self.__graph_data_file_name, prepend_msgs=extra_msgs)
+            self.__display_graph_upload_summary(prepend_msgs=extra_msgs)
 
         apply_granularity_button.on_click(update_granularity_and_graph_data_output)
 
@@ -292,19 +324,35 @@ class UIDataUploadManager(object):
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
 
 
-def print_edge_stats(filename: str, edges: typ.List[vtna.data_import.TemporalEdge]):
-    print(f'{filename}:')
+def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Total Edges:', len(edges))
     print('Update Delta:', vtna.data_import.infer_update_delta(edges))
     print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
 
 
-def print_metadata_stats(filename: str, metadata: vtna.data_import.MetadataTable):
-    print(f'{filename}:')
-    for idx, name in enumerate(metadata.get_attribute_names()):
-        print(f'Column {name}:')
-        for category in metadata.get_categories(name):
-            print(f'- {category}')
+def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
+    col_names = metadata.get_attribute_names()
+    categories = [metadata.get_categories(name) for name in col_names]
+    max_categories = max(map(len, categories))
+
+    table_rows = list()
+    for row in range(max_categories):
+        table_rows.append(list())
+        for col in range(len(col_names)):
+            if len(categories[col]) > row:
+                table_rows[row].append(categories[col][row])
+            else:
+                table_rows[row].append('')
+
+    header_html = f'<tr>{"".join(f"<th>{name}</th>" for name in col_names)}</tr>'
+    body_html = ''.join('<tr>{}</tr>'.format(''.join(f'<td>{cell}</td>' for cell in row)) for row in table_rows)
+    table_html = f"""
+        <table>
+            {header_html}
+            {body_html}
+        </table>
+    """
+    return table_html
 
 
 class UIGraphDisplayManager(object):
