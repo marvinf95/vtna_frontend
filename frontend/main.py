@@ -307,6 +307,10 @@ class UIDataUploadManager(object):
         )
 
         def update_granularity_and_graph_data_output(_):
+            apply_granularity_button.disabled = True
+            old_name = apply_granularity_button.description
+            apply_granularity_button.description = 'Loading...'
+
             extra_msgs = []
             if (granularity_bounded_int_text.value < update_delta or
                     granularity_bounded_int_text.value > latest-earliest or
@@ -317,6 +321,9 @@ class UIDataUploadManager(object):
                 self.__granularity = granularity_bounded_int_text.value
                 self.__run_button.disabled = False
             self.__display_graph_upload_summary(prepend_msgs=extra_msgs)
+
+            apply_granularity_button.description = old_name
+            apply_granularity_button.disabled = False
 
         apply_granularity_button.on_click(update_granularity_and_graph_data_output)
 
@@ -357,18 +364,56 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
 
 class UIGraphDisplayManager(object):
     DEFAULT_UPDATE_DELTA = 20
+    DEFAULT_LAYOUT_IDX = 0
+    LAYOUT_FUNCTIONS = [
+        vtna.layout.static_spring_layout,
+        vtna.layout.flexible_spring_layout,
+        vtna.layout.static_weighted_spring_layout,
+        vtna.layout.flexible_weighted_spring_layout,
+        vtna.layout.random_walk_pca_layout
+    ]
 
     def __init__(self,
                  time_slider: widgets.IntSlider,
-                 play: widgets.Play
+                 play: widgets.Play,
+                 layout_vbox: widgets.VBox
                  ):
         self.__time_slider = time_slider
         self.__play = play
+        self.__layout_vbox = layout_vbox
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
         self.__granularity = None  # type: int
+
+        self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
         self.__layout = None  # type: typ.List[typ.Dict[int, typ.Tuple[float, float]]]
+
+        layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
+        self.__layout_select = widgets.Dropdown(
+            options=layout_options,
+            value=UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX],
+            description='Layout:',
+            # Width of dropdown is based on maximal length of function name.
+            layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
+        )
+
+        # left padding so the right align of the drop down label is simulated, I cannot get text-align to work,
+        # so this is the alternative approach.
+        self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
+        self.__display_layout_description()
+
+        self.__apply_layout_button = widgets.Button(
+            description='Apply',
+            disabled=False,
+            button_style='primary',
+            tooltip='Apply Layout',
+        )
+
+        self.__apply_layout_button.on_click(self.__build_apply_layout())
+
+        self.__layout_vbox.children = [widgets.HBox([self.__layout_select, self.__apply_layout_button]),
+                                       self.__layout_description_output]
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
@@ -377,7 +422,7 @@ class UIGraphDisplayManager(object):
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         # TODO: Allow selection of layout
-        self.__layout = vtna.layout.static_spring_layout(self.__temp_graph, n_iterations=25)
+        self.__layout = self.__layout_function(self.__temp_graph)
 
         self.__time_slider.min = 0
         self.__time_slider.max = len(self.__temp_graph)
@@ -407,3 +452,30 @@ class UIGraphDisplayManager(object):
             plt.show()
 
         return display_current_graph
+
+    def __display_layout_description(self):
+        description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
+
+        with self.__layout_description_output:
+            ipydisplay.clear_output()
+            ipydisplay.display_html(ipydisplay.HTML(description_html))
+
+    def __build_apply_layout(self):
+        def apply_layout(_):
+            # Disable button and change name to Loading...
+            self.__apply_layout_button.disabled = True
+            old_button_name = self.__apply_layout_button.description
+            self.__apply_layout_button.description = 'Loading...'
+            # Compute layout, may take time
+            self.__layout_function = self.__layout_select.value
+            self.__display_layout_description()
+            self.__layout = self.__layout_function(self.__temp_graph)
+            # Refresh display by jumping from original position -> +-1 -> original position.
+            # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
+            old_value = self.__play.value
+            self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
+            self.__play.value = old_value
+            # Enable button, restore old name
+            self.__apply_layout_button.description = old_button_name
+            self.__apply_layout_button.disabled = False
+        return apply_layout
