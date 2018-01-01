@@ -199,7 +199,7 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_graph_upload_summary(self, prepend_msgs: typ.List[str]=None):
+    def __display_graph_upload_summary(self, prepend_msgs: typ.List[str] = None):
         with self.__graph_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
@@ -231,7 +231,7 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str]=None):
+    def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str] = None):
         with self.__metadata_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
@@ -285,6 +285,7 @@ class UIDataUploadManager(object):
             except vtna.data_import.RenamingTargetExistsError as e:
                 msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} already exist\x1b[0m')
             self.__display_metadata_upload_summary(prepend_msgs=msgs)
+
         rename_button.on_click(apply_rename)
 
     def __open_graph_config(self):
@@ -295,7 +296,7 @@ class UIDataUploadManager(object):
             description='Granularity',
             value=update_delta,
             min=update_delta,
-            max=latest-earliest,
+            max=latest - earliest,
             step=update_delta,
             disabled=False
         )
@@ -313,7 +314,7 @@ class UIDataUploadManager(object):
 
             extra_msgs = []
             if (granularity_bounded_int_text.value < update_delta or
-                    granularity_bounded_int_text.value > latest-earliest or
+                    granularity_bounded_int_text.value > latest - earliest or
                     granularity_bounded_int_text.value % update_delta != 0):
                 error_msg = f'\x1b[31m{granularity_bounded_int_text.value} is an invalid granularity\x1b[0m'
                 extra_msgs.append(error_msg)
@@ -478,6 +479,7 @@ class UIGraphDisplayManager(object):
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
+
         return apply_layout
 
 
@@ -661,6 +663,7 @@ class UIAttributeQueriesManager(object):
                     # Hide nominal dropdown and interval slider
                     self.__nominal_value_dropdown.layout.display = 'none'
                     self.__interval_value_int_slider.layout.display = 'none'
+
         return on_change
 
     def __build_on_boolean_operator_change(self) -> typ.Callable:
@@ -674,10 +677,10 @@ class UIAttributeQueriesManager(object):
                 else:
                     self.__add_new_filter_button.disabled = True
                     self.__add_new_clause_msg_html.layout.visibility = 'visible'
+
         return on_change
 
     def __construct_query(self, query_id: int):
-        # TODO: This piece of code is just strange. The HTML uses '' for attributes instead of "" which is just wrong.
         # check which mode
         is_filter = self.__filter_highlight_toggle_buttons.value == 'Filter'
         current_operator = self.__boolean_combination_dropdown.value
@@ -685,39 +688,40 @@ class UIAttributeQueriesManager(object):
         is_new = current_operator in ['NEW', 'NOT']
         # check if this query is active
         is_active = query_id in self.__active_queries
-        html_string = "<ul class='query-row'>"
+        html_string = '<ul class="query-row">'
         # delete query button
-        html_string += f"<li><button class='query-btn btn-del' onclick='deleteQuery(" + str(query_id) + \
-                       ")'><i class='fa fa-trash'></i></button>"
+        html_string += f'<li><button class="query-btn btn-del" onclick="deleteQuery({str(query_id)})">' \
+                       f'<i class="fa fa-trash"></i></button>'
         # toggle actif/inactif button
-        html_string += "<button class='query-btn btn-toggle' onclick='switchQuery(" + str(query_id) + \
-                       ")'><i class='fa " + ['fa-toggle-off', 'fa-toggle-on'][is_active] + "'></i></button>"
+        html_string += f'<button class="query-btn btn-toggle" onclick="switchQuery({str(query_id)})">' \
+                       f'<i class="fa ' + ['fa-toggle-off', 'fa-toggle-on'][is_active] + '"></i></button>'
         # paint query with new color button
-        html_string += "<button class='query-btn btn-brush' onclick='paintQuery(" + \
-                       str(query_id) + ")'><i class='fa fa-paint-brush'></i></button>"
+        html_string += f'<button class="query-btn btn-brush" onclick="paintQuery({str(query_id)})">' \
+                       f'<i class="fa fa-paint-brush"></i></button>'
         # Query bullet point in color
-        html_string += "<span class='flt-element flt-row-bullet " + ['', 'filter-mode'][is_filter] + \
-                       "' style='background: " + self.__queries[query_id]['color'] + "'></span></li>"
+        html_string += '<span class="flt-element flt-row-bullet {}" style="background: {};">' \
+                       '</span></li>'.format(['', 'filter-mode'][is_filter], self.__queries[query_id]['color'])
         # start of the row-item
-        html_string += "<li><span class='flt-element flt-row-item " + ['', 'filter-mode'][is_filter] \
-                       + "' style='color:" + self.__queries[query_id]['color'] + ";'>"
+        html_string += '<li><span class="flt-element flt-row-item {}" style="color: {};">'.format(
+            ['', 'filter-mode'][is_filter], self.__queries[query_id]['color'])
         for key, clause in self.__queries[query_id]['clauses'].items():
-            # Opertor attribute -> value
-            html_string += "<b>" + str(clause['operator'] if clause['operator'] != 'NEW' else '') + " </b> " \
-                           + str(clause['value'][0]) + " &#8702; "
+            # Operator attribute -> value
+
+            html_string += '<b>{}</b>{} &#8702; '.format(['', str(clause['operator'])][clause['operator'] != 'NEW'],
+                                                         str(clause['value'][0]))
             if self.__metadata[clause['value'][0]]['type'] == 'N':
-                html_string += str(clause['value'][1]) + " "
+                html_string += str(clause['value'][1]) + ' '
             else:
-                html_string += "From " + str(clause['value'][1][0]) + " to " + str(clause['value'][1][1])
+                html_string += 'From {} to {}'.format(str(clause['value'][1][0]), str(clause['value'][1][1]))
             # adding 'minus' button to remove clause
-            html_string += "<button class='query-btn btn-del' onclick='deleteQueryClause(" + str(query_id) + "," \
-                           + str(key) + ")'><i class='fa fa-minus-square'></i></button>"
+            html_string += f'<button class="query-btn btn-del" onclick="deleteQueryClause({str(query_id)},' \
+                           f'{str(key)})"><i class="fa fa-minus-square"></i></button>'
         # adding 'plus' button to add new clause
-        html_string += "<button class='query-btn btn-add " + ('btn-disabled' if is_new else '') + "' " \
-                       + ('disabled' if is_new else '') + " onclick='addQueryClause(" + str(query_id) \
-                       + ")'><i class='fa fa-plus-square'></i></button></span></li></ul>"
+        html_string += '<button class="query-btn btn-add {}" {} onclick="addQueryClause({})"> ' \
+                       '<i class="fa fa-plus-square"></i></button></span></li>' \
+                       '</ul>'.format(['', 'btn-disabled'][is_new], ['', 'disabled'][is_new], str(query_id))
         # lookup the widget and reassign the HTML value
-        for i in range(len(self.__queries_output_box .children)):
+        for i in range(len(self.__queries_output_box.children)):
             id_ = self.__queries_output_box.children[i].children[0].description
             if int(id_) == query_id:
                 self.__queries_output_box.children[i].children[1].value = html_string
@@ -742,6 +746,7 @@ class UIAttributeQueriesManager(object):
             self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
             self.__construct_query(self.__query_counter)
             self.__query_counter += 1
+
         return on_click
 
     def build_add_query_clause(self) -> typ.Callable:
@@ -751,6 +756,7 @@ class UIAttributeQueriesManager(object):
                 {'operator': self.__boolean_combination_dropdown.value,
                  'value': (self.__attributes_dropdown.value, value)}
             self.__construct_query(query_id)
+
         return on_click
 
     def build_delete_query_clause(self) -> typ.Callable:
@@ -770,6 +776,7 @@ class UIAttributeQueriesManager(object):
                 else:
                     cl_['operator'] = 'NEW'
                 self.__construct_query(query_id)
+
         return on_click
 
     def build_delete_query(self) -> typ.Callable:
@@ -780,6 +787,7 @@ class UIAttributeQueriesManager(object):
                 if str(query_id) != self.__queries_output_box.children[i].children[0].description:
                     keep.append(self.__queries_output_box.children[i])
             self.__queries_output_box.children = keep
+
         return on_click
 
     def build_switch_query(self) -> typ.Callable:
@@ -790,12 +798,14 @@ class UIAttributeQueriesManager(object):
             else:
                 self.__active_queries.append(q_id)
             self.__construct_query(q_id)
+
         return on_click
 
     def build_paint_query(self) -> typ.Callable:
         def on_click(query_id):
             self.__queries[query_id]['color'] = self.__color_picker.value
             self.__construct_query(query_id)
+
         return on_click
 
     def __build_delete_all_queries(self) -> typ.Callable:
@@ -803,6 +813,7 @@ class UIAttributeQueriesManager(object):
             self.__queries_output_box.children = []
             self.__queries = dict()
             self.__query_counter = 1
+
         return on_click
 
     def __build_on_mode_change(self) -> typ.Callable:
@@ -810,6 +821,7 @@ class UIAttributeQueriesManager(object):
             if change['type'] == 'change' and change['name'] == 'value':
                 ipydisplay.display(ipydisplay.Javascript("je.setMode('" + self.__filter_highlight_toggle_buttons.value
                                                          + "').switchMode();"))
+
         return on_mode_change
 
 
