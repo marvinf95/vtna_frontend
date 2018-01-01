@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 import vtna.data_import
+import vtna.filter
 import vtna.graph
 import vtna.layout
 import vtna.statistics
@@ -831,3 +832,74 @@ def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTabl
                     'values': metadata.get_categories(name)})
                   for name in metadata.get_attribute_names())
     return result
+
+
+def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable, ) -> vtna.filter.NodeFilter:
+    clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
+    for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
+        clause = build_clause(raw_clause, metadata)
+        clauses.append(clause)
+    result_filter = None
+    for i, clause in enumerate(clauses):
+        if i == 0:
+            result_filter = clause
+        else:
+            result_filter += clause
+    return result_filter
+
+
+def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_import.MetadataTable,
+                                       temp_graph: vtna.graph.TemporalGraph, default_color: str) \
+        -> typ.Dict[int, str]:
+    # Init all nodes with the default color
+    colors = dict((node.get_id(), default_color) for node in temp_graph.get_nodes())
+    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[1]), reverse=True)):
+        raw_clause = raw_clauses['clauses']
+        color = raw_clauses['color']
+        clause = build_clause(raw_clause, metadata)
+        nodes_to_color = clause(temp_graph.get_nodes())
+        for node_id in map(lambda n: n.get_id(), nodes_to_color):
+            colors[node_id] = color
+    return colors
+
+
+def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+        -> vtna.filter.NodeFilter:
+    clause = None
+    for raw_predicate in map(lambda t: t[1], sorted(raw_clause.items(), key=lambda t: int(t[0]))):
+        predicate = build_predicate(raw_predicate, metadata)
+        node_filter = vtna.filter.NodeFilter(predicate)
+        # Case distinction for different operators:
+        op = raw_predicate['operator']
+        if op == 'NEW':
+            clause = node_filter
+        elif op == 'NOT':
+            clause = -node_filter
+        elif op == 'AND':
+            clause *= node_filter
+        elif op == 'OR':
+            clause += node_filter
+        elif op == 'AND NOT':
+            clause *= -node_filter
+        elif op == 'OR NOT':
+            clause += -node_filter
+        else:
+            # Either the front end provided a bad queries dict, or the matching is not correct.
+            raise Exception(f'Unknown filter combinator: {op}')
+    return clause
+
+
+def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+        -> typ.Callable[[vtna.graph.TemporalNode], bool]:
+    # TODO: Currently assumes only string type values. More case distinctions needed for more complex types.
+    # build_predicate assumes correctness of the input in regards to measure type assumptions.
+    # e.g. range type queries will only be made for truly ordinal or interval values.
+    name, value = raw_predicate['value']
+    if isinstance(value, (list, tuple)):  # Range type
+        order = metadata.get_categories(name)
+        lower_bound = vtna.filter.ordinal_attribute_greater_than_equal(name, value[0], order)
+        inv_upper_bound = vtna.filter.ordinal_attribute_greater_than(name, value[1], order)
+        pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
+    else:  # Equality
+        pred = vtna.filter.categorical_attribute_equal(name, value)
+    return pred
