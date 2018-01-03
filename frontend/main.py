@@ -502,9 +502,13 @@ class UIAttributeQueriesManager(object):
         self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
         self.__queries_output_box = None  # type: widgets.Box
 
-        self.__query_counter = 1  # type: int
-        self.__queries = dict()  # type: typ.Dict
-        self.__active_queries = list()  # type: typ.List[int]
+        self.__filter_query_counter = 1  # type: int
+        self.__filter_queries = dict()  # type: typ.Dict
+        self.__active_filter_queries = list()  # type: typ.List[int]
+
+        self.__highlight_query_counter = 1  # type: int
+        self.__highlight_queries = dict()  # type: typ.Dict
+        self.__active_highlight_queries = list()  # type: typ.List[int]
 
         self.__build_queries_menu()
 
@@ -681,14 +685,32 @@ class UIAttributeQueriesManager(object):
 
         return on_change
 
+    # TODO: Rename to construct_query_html or something more appropriate
     def __construct_query(self, query_id: int):
+        html_string = self.__construct_query_html(query_id)
+        # lookup the widget and reassign the HTML value
+        for i in range(len(self.__queries_output_box.children)):
+            id_ = self.__queries_output_box.children[i].children[0].description
+            if int(id_) == query_id:
+                self.__queries_output_box.children[i].children[1].value = html_string
+                break
+
+    def __construct_query_html(self, query_id: int) -> str:
+        # TODO: Replace HTML building with template
         # check which mode
-        is_filter = self.__filter_highlight_toggle_buttons.value == 'Filter'
+        is_filter = self.__in_filter_mode()
         current_operator = self.__boolean_combination_dropdown.value
         # check if new filter or a clause (this is used for css reasons and as a workaround JS issues)
         is_new = current_operator in ['NEW', 'NOT']
         # check if this query is active
-        is_active = query_id in self.__active_queries
+        is_active = query_id in self.__get_active_queries_reference()
+        # TODO: Only highlight queries should have a color attached
+        # query color
+        query_color = self.__get_queries_reference()[query_id]['color']
+        # query clauses
+        query_clauses = self.__get_queries_reference()[query_id]['clauses']
+        # TODO: Replace HTML building with template
+        # Start building HTML
         html_string = '<ul class="query-row">'
         # delete query button
         html_string += f'<li><button class="query-btn btn-del" onclick="deleteQuery({str(query_id)})">' \
@@ -701,13 +723,12 @@ class UIAttributeQueriesManager(object):
                        f'<i class="fa fa-paint-brush"></i></button>'
         # Query bullet point in color
         html_string += '<span class="flt-element flt-row-bullet {}" style="background: {};">' \
-                       '</span></li>'.format(['', 'filter-mode'][is_filter], self.__queries[query_id]['color'])
+                       '</span></li>'.format(['', 'filter-mode'][is_filter], query_color)
         # start of the row-item
         html_string += '<li><span class="flt-element flt-row-item {}" style="color: {};">'.format(
-            ['', 'filter-mode'][is_filter], self.__queries[query_id]['color'])
-        for key, clause in self.__queries[query_id]['clauses'].items():
+            ['', 'filter-mode'][is_filter], query_color)
+        for key, clause in query_clauses.items():
             # Operator attribute -> value
-
             html_string += '<b>{}</b>{} &#8702; '.format(['', str(clause['operator'])][clause['operator'] != 'NEW'],
                                                          str(clause['value'][0]))
             if self.__metadata[clause['value'][0]]['type'] == 'N':
@@ -721,12 +742,7 @@ class UIAttributeQueriesManager(object):
         html_string += '<button class="query-btn btn-add {}" {} onclick="addQueryClause({})"> ' \
                        '<i class="fa fa-plus-square"></i></button></span></li>' \
                        '</ul>'.format(['', 'btn-disabled'][is_new], ['', 'disabled'][is_new], str(query_id))
-        # lookup the widget and reassign the HTML value
-        for i in range(len(self.__queries_output_box.children)):
-            id_ = self.__queries_output_box.children[i].children[0].description
-            if int(id_) == query_id:
-                self.__queries_output_box.children[i].children[1].value = html_string
-                break
+        return html_string
 
     def __fetch_current_value(self) -> typ.Any:
         attribute_type = self.__metadata[self.__attributes_dropdown.value]['type']
@@ -736,24 +752,31 @@ class UIAttributeQueriesManager(object):
 
     def __build_add_query(self) -> typ.Callable:
         def on_click(_):
-            self.__active_queries.append(self.__query_counter)
+            active_queries = self.__get_active_queries_reference()
+            query_counter_read = self.__get_query_counter()
+            queries = self.__get_queries_reference()
+
+            active_queries.append(query_counter_read)
             current_value = self.__fetch_current_value()
-            self.__queries[self.__query_counter] = \
+            queries[query_counter_read] = \
                 {'color': self.__color_picker.value,
+                 # TODO: 'NEW' should probably be replace with get on operator dropdown, because it can also be 'NOT'
                  'clauses': {1: {'operator': 'NEW',
                                  'value': (self.__attributes_dropdown.value, current_value)}}}
-            w_0 = widgets.Text(description=str(self.__query_counter), layout=widgets.Layout(display='none'))
+            w_0 = widgets.Text(description=str(query_counter_read), layout=widgets.Layout(display='none'))
             w_1 = widgets.HTML(value=' ', layout=widgets.Layout(display='inline-block'))
             self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
-            self.__construct_query(self.__query_counter)
-            self.__query_counter += 1
+            self.__construct_query(query_counter_read)
 
+            self.__increment_query_counter()
         return on_click
 
     def build_add_query_clause(self) -> typ.Callable:
         def on_click(query_id):
+            queries = self.__get_queries_reference()
             value = self.__fetch_current_value()
-            self.__queries[query_id]['clauses'][max(self.__queries[query_id]['clauses'], key=int) + 1] = \
+            new_clause_idx = int(max(queries[query_id]['clauses'].keys(), key=int)) + 1
+            queries[query_id]['clauses'][new_clause_idx] = \
                 {'operator': self.__boolean_combination_dropdown.value,
                  'value': (self.__attributes_dropdown.value, value)}
             self.__construct_query(query_id)
@@ -762,15 +785,16 @@ class UIAttributeQueriesManager(object):
 
     def build_delete_query_clause(self) -> typ.Callable:
         def on_click(query_id, clause_id):
-            self.__queries[query_id]['clauses'].pop(clause_id)
-            if len(self.__queries[query_id]['clauses']) == 0:
+            queries = self.__get_queries_reference()
+            queries[query_id]['clauses'].pop(clause_id)
+            if len(queries[query_id]['clauses']) == 0:
                 keep = []
                 for i in range(len(self.__queries_output_box.children)):
                     if str(query_id) != self.__queries_output_box.children[i].children[0].description:
                         keep.append(self.__queries_output_box.children[i])
                         self.__queries_output_box.children = keep
             else:
-                cl_ = next(iter(self.__queries[query_id]['clauses'].values()))
+                cl_ = next(iter(queries[query_id]['clauses'].values()))
                 op_ = cl_['operator'].split(' ')
                 if len(op_) == 2:
                     cl_['operator'] = op_[1]
@@ -782,7 +806,8 @@ class UIAttributeQueriesManager(object):
 
     def build_delete_query(self) -> typ.Callable:
         def on_click(query_id):
-            self.__queries.pop(query_id)
+            queries = self.__get_queries_reference()
+            queries.pop(query_id)
             keep = []
             for i in range(len(self.__queries_output_box.children)):
                 if str(query_id) != self.__queries_output_box.children[i].children[0].description:
@@ -793,18 +818,20 @@ class UIAttributeQueriesManager(object):
 
     def build_switch_query(self) -> typ.Callable:
         def on_click(query_id):
+            active_queries = self.__get_active_queries_reference()
             q_id = int(query_id)
-            if q_id in self.__active_queries:
-                self.__active_queries.remove(q_id)
+            if q_id in active_queries:
+                active_queries.remove(q_id)
             else:
-                self.__active_queries.append(q_id)
+                active_queries.append(q_id)
             self.__construct_query(q_id)
 
         return on_click
 
     def build_paint_query(self) -> typ.Callable:
         def on_click(query_id):
-            self.__queries[query_id]['color'] = self.__color_picker.value
+            queries = self.__get_queries_reference()
+            queries[query_id]['color'] = self.__color_picker.value
             self.__construct_query(query_id)
 
         return on_click
@@ -812,8 +839,8 @@ class UIAttributeQueriesManager(object):
     def __build_delete_all_queries(self) -> typ.Callable:
         def on_click(_):
             self.__queries_output_box.children = []
-            self.__queries = dict()
-            self.__query_counter = 1
+            self.__reset_queries()
+            self.__reset_query_counter()
 
         return on_click
 
@@ -822,8 +849,57 @@ class UIAttributeQueriesManager(object):
             if change['type'] == 'change' and change['name'] == 'value':
                 ipydisplay.display(ipydisplay.Javascript("je.setMode('" + self.__filter_highlight_toggle_buttons.value
                                                          + "').switchMode();"))
-
+                # Redraw queries output completely
+                self.__construct_queries_from_scratch()
         return on_mode_change
+
+    def __construct_queries_from_scratch(self) -> None:
+        # Empty output box
+        self.__queries_output_box.children = []
+        # Add queries
+        for query_id, query in self.__get_queries_reference().items():
+            w_0 = widgets.Text(description=str(query_id), layout=widgets.Layout(display='none'))
+            w_1 = widgets.HTML(value=self.__construct_query_html(query_id),
+                               layout=widgets.Layout(display='inline-block'))
+            self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
+
+    def __in_filter_mode(self) -> bool:
+        """Returns whether current mode is filter or not (highlight)"""
+        return self.__filter_highlight_toggle_buttons.value == 'Filter'
+
+    def __get_active_queries_reference(self) -> typ.List[int]:
+        """Returns reference to active_queries list corresponding to the current mode: filter or highlight"""
+        active_queries = self.__active_filter_queries if self.__in_filter_mode() else self.__active_highlight_queries
+        return active_queries
+
+    def __get_queries_reference(self) -> typ.Dict:
+        """Returns reference to queries dict corresponding to the current mode: filter or highlight"""
+        return self.__filter_queries if self.__in_filter_mode() else self.__highlight_queries
+
+    def __reset_queries(self) -> None:
+        """Empties queries of current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_queries = dict()
+        else:
+            self.__highlight_queries = dict()
+
+    def __get_query_counter(self) -> int:
+        """Returns the query count corresponding to the current mode: filter or highlight"""
+        return self.__filter_query_counter if self.__in_filter_mode() else self.__highlight_query_counter
+
+    def __increment_query_counter(self) -> None:
+        """Increments the query count corresponding to the current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_query_counter += 1
+        else:
+            self.__highlight_query_counter += 1
+
+    def __reset_query_counter(self) -> None:
+        """Resets the query count to 1 corresponding to the current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_query_counter = 1
+        else:
+            self.__highlight_query_counter = 1
 
 
 def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
