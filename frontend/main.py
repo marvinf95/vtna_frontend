@@ -423,7 +423,7 @@ class UIGraphDisplayManager(object):
         self.__layout = self.__layout_function(self.__temp_graph)
 
         self.__time_slider.min = 0
-        self.__time_slider.max = len(self.__temp_graph)
+        self.__time_slider.max = len(self.__temp_graph) - 1
         self.__time_slider.value = 0
 
         self.__play.min = 0
