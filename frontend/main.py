@@ -786,20 +786,15 @@ class UIAttributeQueriesManager(object):
     def build_delete_query_clause(self) -> typ.Callable:
         def on_click(query_id, clause_id):
             queries = self.__get_queries_reference()
+            clause = queries[query_id]['clauses'][clause_id]
+            is_initial = clause['operator'] in {'NEW', 'NOT'}
             queries[query_id]['clauses'].pop(clause_id)
             if len(queries[query_id]['clauses']) == 0:
-                keep = []
-                for i in range(len(self.__queries_output_box.children)):
-                    if str(query_id) != self.__queries_output_box.children[i].children[0].description:
-                        keep.append(self.__queries_output_box.children[i])
-                        self.__queries_output_box.children = keep
+                queries.pop(query_id)
+                self.__construct_queries_from_scratch()
             else:
-                cl_ = next(iter(queries[query_id]['clauses'].values()))
-                op_ = cl_['operator'].split(' ')
-                if len(op_) == 2:
-                    cl_['operator'] = op_[1]
-                else:
-                    cl_['operator'] = 'NEW'
+                if is_initial:
+                    clause['operator'] = 'NOT' if 'NOT' in clause['operator'] else 'NEW'
                 self.__construct_query(query_id)
 
         return on_click
