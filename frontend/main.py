@@ -121,8 +121,6 @@ class UIDataUploadManager(object):
                 self.__graph_data_file_name = w.filename
                 # Import graph as edge list via vtna
                 self.__edge_list = vtna.data_import.read_edge_table(w.filename)
-                # Display summary of loaded file to __graph_data_output
-                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -142,7 +140,6 @@ class UIDataUploadManager(object):
                 # Save file name of graph data
                 self.__graph_data_file_name = url
                 self.__edge_list = vtna.data_import.read_edge_table(url)
-                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -208,14 +205,9 @@ class UIDataUploadManager(object):
                     print(msg)
             print_edge_stats(self.__edge_list)
             # Collect/Generate data for edge histogram plot
-            update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
             earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
-            if self.__granularity is None:
-                granularity = update_delta * 100
-                title = f'No granularity set. Displayed with granularity: {granularity}'
-            else:
-                granularity = self.__granularity
-                title = f'Granularity: {granularity}'
+            granularity = self.__granularity
+            title = f'Granularity: {granularity}'
             histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
             x = list(range(len(histogram)))
             # Plot edge histogram
@@ -292,10 +284,13 @@ class UIDataUploadManager(object):
     def __open_graph_config(self):
         earliest, latest = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
         update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
+        self.__granularity = update_delta * 100
+
+        self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
             description='Granularity',
-            value=update_delta,
+            value=self.__granularity,
             min=update_delta,
             max=latest - earliest,
             step=update_delta,
@@ -331,6 +326,7 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox.children = \
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
+        self.__display_graph_upload_summary()
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
