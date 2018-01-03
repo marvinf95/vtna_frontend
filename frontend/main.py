@@ -419,7 +419,7 @@ class UIGraphDisplayManager(object):
                             granularity: int
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
-        # TODO: Allow selection of layout
+        # TODO: Allow hyperparameters for layout
         self.__layout = self.__layout_function(self.__temp_graph)
 
         self.__time_slider.min = 0
@@ -435,7 +435,6 @@ class UIGraphDisplayManager(object):
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
 
-    # TODO: allow selection of layout
     def build_display_current_graph(self, fig_num: int) -> typ.Callable[[int], None]:
         def display_current_graph(current_time_step: int):
             graph = self.__temp_graph[current_time_step]
