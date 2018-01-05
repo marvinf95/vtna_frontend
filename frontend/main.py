@@ -7,6 +7,7 @@ import IPython.display as ipydisplay
 from ipywidgets import widgets
 import matplotlib.pyplot as plt
 import networkx as nx
+import pystache
 
 import vtna.data_import
 import vtna.filter
@@ -481,10 +482,13 @@ class UIGraphDisplayManager(object):
 
 class UIAttributeQueriesManager(object):
     def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
-                 filter_box_layout: widgets.Layout):
+                 filter_box_layout: widgets.Layout, query_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
         self.__metadata = transform_metadata_to_queries_format(metadata)
+
+        with open(query_html_template_path, mode='rt') as f:
+            self.__query_template = f.read()
 
         self.__attributes_dropdown = None  # type: widgets.Dropdown
         self.__nominal_value_dropdown = None  # type: widgets.Dropdown
@@ -691,52 +695,35 @@ class UIAttributeQueriesManager(object):
                 break
 
     def __construct_query_html(self, query_id: int) -> str:
-        # TODO: Replace HTML building with template
-        # check which mode
         is_filter = self.__in_filter_mode()
         current_operator = self.__boolean_combination_dropdown.value
-        # check if new filter or a clause (this is used for css reasons and as a workaround JS issues)
         is_new = current_operator in ['NEW', 'NOT']
-        # check if this query is active
         is_active = query_id in self.__get_active_queries_reference()
+
+        context = dict()
+        context['query_id'] = str(query_id)
+        context['toggle_state'] = ['fa-toggle-off', 'fa-toggle-on'][is_active]
+        context['is_filter'] = is_filter
+        context['is_new'] = is_new
         # TODO: Only highlight queries should have a color attached
-        # query color
-        query_color = self.__get_queries_reference()[query_id]['color']
-        # query clauses
-        query_clauses = self.__get_queries_reference()[query_id]['clauses']
-        # TODO: Replace HTML building with template
-        # Start building HTML
-        html_string = '<ul class="query-row">'
-        # delete query button
-        html_string += f'<li><button class="query-btn btn-del" onclick="deleteQuery({str(query_id)})">' \
-                       f'<i class="fa fa-trash"></i></button>'
-        # toggle actif/inactif button
-        html_string += f'<button class="query-btn btn-toggle" onclick="switchQuery({str(query_id)})">' \
-                       f'<i class="fa ' + ['fa-toggle-off', 'fa-toggle-on'][is_active] + '"></i></button>'
-        # paint query with new color button
-        html_string += f'<button class="query-btn btn-brush" onclick="paintQuery({str(query_id)})">' \
-                       f'<i class="fa fa-paint-brush"></i></button>'
-        # Query bullet point in color
-        html_string += '<span class="flt-element flt-row-bullet {}" style="background: {};">' \
-                       '</span></li>'.format(['', 'filter-mode'][is_filter], query_color)
-        # start of the row-item
-        html_string += '<li><span class="flt-element flt-row-item {}" style="color: {};">'.format(
-            ['', 'filter-mode'][is_filter], query_color)
-        for key, clause in query_clauses.items():
-            # Operator attribute -> value
-            html_string += '<b>{}</b>{} &#8702; '.format(['', str(clause['operator'])][clause['operator'] != 'NEW'],
-                                                         str(clause['value'][0]))
+        context['color'] = self.__get_queries_reference()[query_id]['color']
+        context['clauses'] = list()
+        for key, clause in self.__get_queries_reference()[query_id]['clauses'].items():
+            clause_ctx = dict()
+            clause_ctx['clause_id'] = str(key)
+            clause_ctx['operator_new'] = clause['operator'] == 'NEW'
+            clause_ctx['attribute_name'] = clause['value'][0]
             if self.__metadata[clause['value'][0]]['type'] == 'N':
-                html_string += str(clause['value'][1]) + ' '
+                clause_ctx['is_nominal'] = True
+                clause_ctx['value'] = clause['value'][1]
             else:
-                html_string += 'From {} to {}'.format(str(clause['value'][1][0]), str(clause['value'][1][1]))
-            # adding 'minus' button to remove clause
-            html_string += f'<button class="query-btn btn-del" onclick="deleteQueryClause({str(query_id)},' \
-                           f'{str(key)})"><i class="fa fa-minus-square"></i></button>'
-        # adding 'plus' button to add new clause
-        html_string += '<button class="query-btn btn-add {}" {} onclick="addQueryClause({})"> ' \
-                       '<i class="fa fa-plus-square"></i></button></span></li>' \
-                       '</ul>'.format(['', 'btn-disabled'][is_new], ['', 'disabled'][is_new], str(query_id))
+                clause_ctx['is_nominal'] = False
+                clause_ctx['value_begin'] = clause['value'][1][0]
+                clause_ctx['value_end'] = clause['value'][1][1]
+            context['clauses'].append(clause_ctx)
+
+        html_string = pystache.render(self.__query_template, context)
+
         return html_string
 
     def __fetch_current_value(self) -> typ.Any:
