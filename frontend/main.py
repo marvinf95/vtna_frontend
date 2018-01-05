@@ -708,10 +708,11 @@ class UIAttributeQueriesManager(object):
         # TODO: Only highlight queries should have a color attached
         context['color'] = self.__get_queries_reference()[query_id]['color']
         context['clauses'] = list()
-        for key, clause in self.__get_queries_reference()[query_id]['clauses'].items():
+        for key, clause in sorted(self.__get_queries_reference()[query_id]['clauses'].items(), key=lambda t: int(t[0])):
             clause_ctx = dict()
             clause_ctx['clause_id'] = str(key)
             clause_ctx['operator_new'] = clause['operator'] == 'NEW'
+            clause_ctx['operator'] = clause['operator']
             clause_ctx['attribute_name'] = clause['value'][0]
             if self.__metadata[clause['value'][0]]['type'] == 'N':
                 clause_ctx['is_nominal'] = True
@@ -743,7 +744,7 @@ class UIAttributeQueriesManager(object):
             queries[query_counter_read] = \
                 {'color': self.__color_picker.value,
                  # TODO: 'NEW' should probably be replace with get on operator dropdown, because it can also be 'NOT'
-                 'clauses': {1: {'operator': 'NEW',
+                 'clauses': {1: {'operator': 'NOT' if self.__boolean_combination_dropdown.value == 'NOT' else 'NEW',
                                  'value': (self.__attributes_dropdown.value, current_value)}}}
             w_0 = widgets.Text(description=str(query_counter_read), layout=widgets.Layout(display='none'))
             w_1 = widgets.HTML(value=' ', layout=widgets.Layout(display='inline-block'))
@@ -776,9 +777,11 @@ class UIAttributeQueriesManager(object):
                 self.__construct_queries_from_scratch()
             else:
                 if is_initial:
-                    clause['operator'] = 'NOT' if 'NOT' in clause['operator'] else 'NEW'
+                    # Find next clause in order after old initial one
+                    new_initial_idx = min(queries[query_id]['clauses'].keys(), key=int)
+                    queries[query_id]['clauses'][new_initial_idx]['operator'] = \
+                        'NOT' if 'NOT' in queries[query_id]['clauses'][new_initial_idx]['operator'] else 'NEW'
                 self.__construct_query(query_id)
-
         return on_click
 
     def build_delete_query(self) -> typ.Callable:

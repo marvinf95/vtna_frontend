@@ -16,7 +16,7 @@
     <li>
         <span class="flt-element flt-row-item {{#is_filter}}filter-mode{{/is_filter}}" style="color: {{color}};">
             {{#clauses}}
-                <b>{{^operator_new}}{{operator}}{{/operator_new}}</b>{{attribute_name}} &#8702;
+                <b>{{^operator_new}}{{operator}}{{/operator_new}}</b> {{attribute_name}} &#8702;
                 {{#is_nominal}}{{value}}{{/is_nominal}}
                 {{^is_nominal}}From {{value_begin}} to {{value_end}}{{/is_nominal}}
                 <button class="query-btn btn-del" onclick="deleteQueryClause({{query_id}}, {{clause_id}})">
