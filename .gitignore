@@ -1,6 +1,6 @@
 *.pyc
 /dist/
-/*.egg-info
+*.egg-info
 .idea/
 vtna/__pycache__/
 vtna/tests/__pycache__/
