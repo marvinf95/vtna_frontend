@@ -1,0 +1,32 @@
+<ul class="query-row">
+    <li>
+        <button class="query-btn btn-del" onclick="deleteQuery({{query_id}})">
+            <i class="fa fa-trash"></i>
+        </button>
+        <button class="query-btn btn-toggle" onclick="switchQuery({{query_id}})">
+            <i class="fa {{toggle_state}}"></i>
+        </button>
+        <button class="query-btn btn-brush" onclick="paintQuery({{query_id}})">
+            <i class="fa fa-paint-brush"></i>
+        </button>
+        <span class="flt-element flt-row-bullet {{#is_filter}}filter-mode{{/is_filter}}"
+              style="background: {{color}};">
+        </span>
+    </li>
+    <li>
+        <span class="flt-element flt-row-item {{#is_filter}}filter-mode{{/is_filter}}" style="color: {{color}};">
+            {{#clauses}}
+                <b>{{^operator_new}}{{operator}}{{/operator_new}}</b> {{attribute_name}} &#8702;
+                {{#is_nominal}}{{value}}{{/is_nominal}}
+                {{^is_nominal}}From {{value_begin}} to {{value_end}}{{/is_nominal}}
+                <button class="query-btn btn-del" onclick="deleteQueryClause({{query_id}}, {{clause_id}})">
+                    <i class="fa fa-minus-square"></i>
+                </button>
+            {{/clauses}}
+            <button class="query-btn btn-add {{#is_new}}btn-disabled{{/is_new}}" {{#is_new}}disabled{{/is_new}}
+                    onclick="addQueryClause({{query_id}})">
+                <i class="fa fa-plus-square"></i>
+            </button>
+        </span>
+    </li>
+</ul>

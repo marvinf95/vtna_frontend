@@ -7,8 +7,10 @@ import IPython.display as ipydisplay
 from ipywidgets import widgets
 import matplotlib.pyplot as plt
 import networkx as nx
+import pystache
 
 import vtna.data_import
+import vtna.filter
 import vtna.graph
 import vtna.layout
 import vtna.statistics
@@ -120,8 +122,6 @@ class UIDataUploadManager(object):
                 self.__graph_data_file_name = w.filename
                 # Import graph as edge list via vtna
                 self.__edge_list = vtna.data_import.read_edge_table(w.filename)
-                # Display summary of loaded file to __graph_data_output
-                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -141,7 +141,6 @@ class UIDataUploadManager(object):
                 # Save file name of graph data
                 self.__graph_data_file_name = url
                 self.__edge_list = vtna.data_import.read_edge_table(url)
-                self.__display_graph_upload_summary()
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -199,7 +198,7 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_graph_upload_summary(self, prepend_msgs: typ.List[str]=None):
+    def __display_graph_upload_summary(self, prepend_msgs: typ.List[str] = None):
         with self.__graph_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
@@ -207,14 +206,9 @@ class UIDataUploadManager(object):
                     print(msg)
             print_edge_stats(self.__edge_list)
             # Collect/Generate data for edge histogram plot
-            update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
             earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
-            if self.__granularity is None:
-                granularity = update_delta * 100
-                title = f'No granularity set. Displayed with granularity: {granularity}'
-            else:
-                granularity = self.__granularity
-                title = f'Granularity: {granularity}'
+            granularity = self.__granularity
+            title = f'Granularity: {granularity}'
             histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
             x = list(range(len(histogram)))
             # Plot edge histogram
@@ -231,7 +225,7 @@ class UIDataUploadManager(object):
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
-    def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str]=None):
+    def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str] = None):
         with self.__metadata_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
@@ -285,17 +279,21 @@ class UIDataUploadManager(object):
             except vtna.data_import.RenamingTargetExistsError as e:
                 msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} already exist\x1b[0m')
             self.__display_metadata_upload_summary(prepend_msgs=msgs)
+
         rename_button.on_click(apply_rename)
 
     def __open_graph_config(self):
         earliest, latest = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
         update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
+        self.__granularity = update_delta * 100
+
+        self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
             description='Granularity',
-            value=update_delta,
+            value=self.__granularity,
             min=update_delta,
-            max=latest-earliest,
+            max=latest - earliest,
             step=update_delta,
             disabled=False
         )
@@ -313,7 +311,7 @@ class UIDataUploadManager(object):
 
             extra_msgs = []
             if (granularity_bounded_int_text.value < update_delta or
-                    granularity_bounded_int_text.value > latest-earliest or
+                    granularity_bounded_int_text.value > latest - earliest or
                     granularity_bounded_int_text.value % update_delta != 0):
                 error_msg = f'\x1b[31m{granularity_bounded_int_text.value} is an invalid granularity\x1b[0m'
                 extra_msgs.append(error_msg)
@@ -329,6 +327,7 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox.children = \
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
+        self.__display_graph_upload_summary()
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
@@ -421,11 +420,11 @@ class UIGraphDisplayManager(object):
                             granularity: int
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
-        # TODO: Allow selection of layout
+        # TODO: Allow hyperparameters for layout
         self.__layout = self.__layout_function(self.__temp_graph)
 
         self.__time_slider.min = 0
-        self.__time_slider.max = len(self.__temp_graph)
+        self.__time_slider.max = len(self.__temp_graph) - 1
         self.__time_slider.value = 0
 
         self.__play.min = 0
@@ -437,7 +436,6 @@ class UIGraphDisplayManager(object):
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
 
-    # TODO: allow selection of layout
     def build_display_current_graph(self, fig_num: int) -> typ.Callable[[int], None]:
         def display_current_graph(current_time_step: int):
             graph = self.__temp_graph[current_time_step]
@@ -478,4 +476,485 @@ class UIGraphDisplayManager(object):
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
+
         return apply_layout
+
+
+class UIAttributeQueriesManager(object):
+    def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
+                 filter_box_layout: widgets.Layout, query_html_template_path: str):
+        self.__queries_main_vbox = queries_main_vbox
+        self.__filter_box_layout = filter_box_layout
+        self.__metadata = transform_metadata_to_queries_format(metadata)
+
+        with open(query_html_template_path, mode='rt') as f:
+            self.__query_template = f.read()
+
+        self.__attributes_dropdown = None  # type: widgets.Dropdown
+        self.__nominal_value_dropdown = None  # type: widgets.Dropdown
+        self.__interval_value_int_slider = None  # type: widgets.Dropdown
+        self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
+        self.__color_picker = None  # type: widgets.ColorPicker
+        self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
+        self.__add_new_filter_button = None  # type: widgets.Button
+        self.__add_new_clause_msg_html = None  # type: widgets.HTML
+        self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
+        self.__queries_output_box = None  # type: widgets.Box
+
+        self.__filter_query_counter = 1  # type: int
+        self.__filter_queries = dict()  # type: typ.Dict
+        self.__active_filter_queries = list()  # type: typ.List[int]
+
+        self.__highlight_query_counter = 1  # type: int
+        self.__highlight_queries = dict()  # type: typ.Dict
+        self.__active_highlight_queries = list()  # type: typ.List[int]
+
+        self.__build_queries_menu()
+
+        self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
+        self.__attributes_dropdown.observe(self.__build_on_attribute_change())
+        self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
+        self.__add_new_filter_button.on_click(self.__build_add_query())
+        self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
+
+    def __build_queries_menu(self):
+        attributes = list(self.__metadata.keys())
+        initial_attribute = self.__metadata[attributes[0]]
+        # Attribute drop down
+        self.__attributes_dropdown = widgets.Dropdown(
+            options=attributes,
+            value=attributes[0],
+            description='Attribute:',
+            disabled=False,
+        )
+        # Nominal dropdown
+        self.__nominal_value_dropdown = widgets.Dropdown(
+            disabled=True if initial_attribute['type'] != 'N' else False,
+            options=initial_attribute['values'] if initial_attribute['type'] == 'N' else ['Range'],
+            value=initial_attribute['values'][0] if initial_attribute['type'] == 'N' else 'Range',
+            description='Value:',
+        )
+        # Interval slider
+        self.__interval_value_int_slider = widgets.IntRangeSlider(
+            description='Value:',
+            disabled=True if initial_attribute['type'] != 'I' else False,
+            value=[35, 52],
+            min=16,
+            max=65,
+            step=1,
+            orientation='horizontal',
+            readout=False if initial_attribute['type'] != 'I' else True,
+            readout_format='d',
+            layout=widgets.Layout(width='99%')
+        )
+        # Ordinal slider
+        self.__ordinal_value_selection_range_slider = widgets.SelectionRangeSlider(
+            description='Value:',
+            options=initial_attribute['values'] if initial_attribute['type'] == 'O' else ['N/A'],
+            index=(0, len(initial_attribute['values']) - 1) if initial_attribute['type'] == 'O' else (0, 0),
+            disabled=True if initial_attribute['type'] != 'O' else False,
+            layout=widgets.Layout(width='99%')
+        )
+        # Colorpicker
+        self.__color_picker = widgets.ColorPicker(
+            concise=False,
+            value='blue',
+            description='Color:',
+            disabled=False
+        )
+        # Add new filter
+        self.__add_new_filter_button = widgets.Button(
+            disabled=False,
+            description='Add new query',
+            button_style='success',
+            tooltip='Add filter',
+            icon='plus',
+            layout=widgets.Layout(width='auto')
+        )
+        # Delete all queries
+        self.__delete_all_queries_button = widgets.Button(
+            description='Reset',
+            disabled=False,
+            button_style='',
+            tooltip='Reset filter',
+            icon='refresh',
+            layout=widgets.Layout(width='auto')
+        )
+        # switch between Filter mode or Highlight mode
+        self.__filter_highlight_toggle_buttons = widgets.ToggleButtons(
+            options=['Filter', 'Highlight'],
+            description='',
+            value='Highlight',
+            button_style=''
+        )
+        # Query operations ('New/Not' is used to refer to a new filter with a root clause)
+        self.__boolean_combination_dropdown = widgets.Dropdown(
+            options=['NEW', 'NOT', 'AND', 'AND NOT', 'OR', 'OR NOT'],
+            description='Operator:',
+            value='NEW'
+        )
+        # display inputs depending on current initial data type
+        if initial_attribute['type'] == 'O':
+            self.__nominal_value_dropdown.layout.display = 'none'
+            self.__interval_value_int_slider.layout.display = 'none'
+        elif initial_attribute['type'] == 'I':
+            self.__nominal_value_dropdown.layout.display = 'none'
+            self.__ordinal_value_selection_range_slider.layout.display = 'none'
+        else:
+            self.__interval_value_int_slider.layout.display = 'none'
+            self.__ordinal_value_selection_range_slider.layout.display = 'none'
+
+        # Msg for colorpicker
+        color_picker_msg_html = widgets.HTML(
+            value="<span style='color:#7f8c8d'> Use the <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
+                  "to change the color of a query</span>")
+        # Msg for add new clause
+        self.__add_new_clause_msg_html = widgets.HTML(
+            value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
+                  "to add a clause to a query</span>")
+        # Hiding msg untill 'operation' != New/Not
+        self.__add_new_clause_msg_html.layout.visibility = 'hidden'
+        # Main toolbar : Operator, Add
+        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
+                                          self.__add_new_clause_msg_html],
+                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
+        # Queries toolbar: Reset(delete all), toggle mode
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
+        # form BOX
+        queries_form_vbox = widgets.VBox(
+            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
+             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
+             main_toolbar_hbox])
+        # Query output BOX
+        self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
+        # Put created components into correct container
+        self.__queries_main_vbox.children = [queries_form_vbox, self.__queries_output_box, queries_toolbar_hbox]
+
+    def __build_on_attribute_change(self) -> typ.Callable:
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                selected_attribute = self.__metadata[self.__attributes_dropdown.value]
+                if selected_attribute['type'] == 'N':  # Selected attribute is nominal
+                    # Activate nominal value dropdown
+                    self.__nominal_value_dropdown.options = selected_attribute['values']
+                    self.__nominal_value_dropdown.value = selected_attribute['values'][0]
+                    self.__nominal_value_dropdown.disabled = False
+                    self.__nominal_value_dropdown.layout.display = 'inline-flex'
+                    # Hide interval and ordinal value sliders
+                    # TODO: Not sure about these two lines, commented them out for now
+                    # self.__interval_value_int_slider.disabled = True
+                    # self.__interval_value_int_slider.readout = False
+                    self.__interval_value_int_slider.layout.display = 'none'
+                    self.__ordinal_value_selection_range_slider.layout.display = 'none'
+                elif selected_attribute['type'] == 'I':  # Selected attribute is interval
+                    # Activate interval value slider
+                    self.__interval_value_int_slider.disabled = False
+                    self.__interval_value_int_slider.readout = True
+                    self.__interval_value_int_slider.value = selected_attribute['values']
+                    self.__interval_value_int_slider.min = min(selected_attribute['values'])
+                    self.__interval_value_int_slider.max = max(selected_attribute['values'])
+                    self.__interval_value_int_slider.layout.display = 'inline-flex'
+                    # Hide nominal dropdown and ordinal slider
+                    self.__nominal_value_dropdown.layout.display = 'none'
+                    self.__ordinal_value_selection_range_slider.layout.display = 'none'
+                elif selected_attribute['type'] == 'O':  # Selected attribute is ordinal
+                    # Activate ordinal value slider
+                    self.__ordinal_value_selection_range_slider.disabled = False
+                    self.__ordinal_value_selection_range_slider.readout = True
+                    self.__ordinal_value_selection_range_slider.options = selected_attribute['values']
+                    self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute) - 1)
+                    self.__ordinal_value_selection_range_slider.layout.display = 'inline-flex'
+                    # Hide nominal dropdown and interval slider
+                    self.__nominal_value_dropdown.layout.display = 'none'
+                    self.__interval_value_int_slider.layout.display = 'none'
+
+        return on_change
+
+    def __build_on_boolean_operator_change(self) -> typ.Callable:
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                new_operator = self.__boolean_combination_dropdown.value
+                ipydisplay.display(ipydisplay.Javascript(f"je.setOperator('{new_operator}').adjustButtons();"))
+                if new_operator in ['NEW', 'NOT']:
+                    self.__add_new_filter_button.disabled = False
+                    self.__add_new_clause_msg_html.layout.visibility = 'hidden'
+                else:
+                    self.__add_new_filter_button.disabled = True
+                    self.__add_new_clause_msg_html.layout.visibility = 'visible'
+
+        return on_change
+
+    # TODO: Rename to construct_query_html or something more appropriate
+    def __construct_query(self, query_id: int):
+        html_string = self.__construct_query_html(query_id)
+        # lookup the widget and reassign the HTML value
+        for i in range(len(self.__queries_output_box.children)):
+            id_ = self.__queries_output_box.children[i].children[0].description
+            if int(id_) == query_id:
+                self.__queries_output_box.children[i].children[1].value = html_string
+                break
+
+    def __construct_query_html(self, query_id: int) -> str:
+        is_filter = self.__in_filter_mode()
+        current_operator = self.__boolean_combination_dropdown.value
+        is_new = current_operator in ['NEW', 'NOT']
+        is_active = query_id in self.__get_active_queries_reference()
+
+        context = dict()
+        context['query_id'] = str(query_id)
+        context['toggle_state'] = ['fa-toggle-off', 'fa-toggle-on'][is_active]
+        context['is_filter'] = is_filter
+        context['is_new'] = is_new
+        # TODO: Only highlight queries should have a color attached
+        context['color'] = self.__get_queries_reference()[query_id]['color']
+        context['clauses'] = list()
+        for key, clause in sorted(self.__get_queries_reference()[query_id]['clauses'].items(), key=lambda t: int(t[0])):
+            clause_ctx = dict()
+            clause_ctx['clause_id'] = str(key)
+            clause_ctx['operator_new'] = clause['operator'] == 'NEW'
+            clause_ctx['operator'] = clause['operator']
+            clause_ctx['attribute_name'] = clause['value'][0]
+            if self.__metadata[clause['value'][0]]['type'] == 'N':
+                clause_ctx['is_nominal'] = True
+                clause_ctx['value'] = clause['value'][1]
+            else:
+                clause_ctx['is_nominal'] = False
+                clause_ctx['value_begin'] = clause['value'][1][0]
+                clause_ctx['value_end'] = clause['value'][1][1]
+            context['clauses'].append(clause_ctx)
+
+        html_string = pystache.render(self.__query_template, context)
+
+        return html_string
+
+    def __fetch_current_value(self) -> typ.Any:
+        attribute_type = self.__metadata[self.__attributes_dropdown.value]['type']
+        return {'N': self.__nominal_value_dropdown.value,
+                'I': self.__interval_value_int_slider,
+                'O': self.__ordinal_value_selection_range_slider}[attribute_type]
+
+    def __build_add_query(self) -> typ.Callable:
+        def on_click(_):
+            active_queries = self.__get_active_queries_reference()
+            query_counter_read = self.__get_query_counter()
+            queries = self.__get_queries_reference()
+
+            active_queries.append(query_counter_read)
+            current_value = self.__fetch_current_value()
+            queries[query_counter_read] = \
+                {'color': self.__color_picker.value,
+                 'clauses': {1: {'operator': 'NOT' if self.__boolean_combination_dropdown.value == 'NOT' else 'NEW',
+                                 'value': (self.__attributes_dropdown.value, current_value)}}}
+            w_0 = widgets.Text(description=str(query_counter_read), layout=widgets.Layout(display='none'))
+            w_1 = widgets.HTML(value=' ', layout=widgets.Layout(display='inline-block'))
+            self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
+            self.__construct_query(query_counter_read)
+
+            self.__increment_query_counter()
+        return on_click
+
+    def build_add_query_clause(self) -> typ.Callable:
+        def on_click(query_id):
+            queries = self.__get_queries_reference()
+            value = self.__fetch_current_value()
+            new_clause_idx = int(max(queries[query_id]['clauses'].keys(), key=int)) + 1
+            queries[query_id]['clauses'][new_clause_idx] = \
+                {'operator': self.__boolean_combination_dropdown.value,
+                 'value': (self.__attributes_dropdown.value, value)}
+            self.__construct_query(query_id)
+
+        return on_click
+
+    def build_delete_query_clause(self) -> typ.Callable:
+        def on_click(query_id, clause_id):
+            queries = self.__get_queries_reference()
+            clause = queries[query_id]['clauses'][clause_id]
+            is_initial = clause['operator'] in {'NEW', 'NOT'}
+            queries[query_id]['clauses'].pop(clause_id)
+            if len(queries[query_id]['clauses']) == 0:
+                queries.pop(query_id)
+                self.__construct_queries_from_scratch()
+            else:
+                if is_initial:
+                    # Find next clause in order after old initial one
+                    new_initial_idx = min(queries[query_id]['clauses'].keys(), key=int)
+                    queries[query_id]['clauses'][new_initial_idx]['operator'] = \
+                        'NOT' if 'NOT' in queries[query_id]['clauses'][new_initial_idx]['operator'] else 'NEW'
+                self.__construct_query(query_id)
+        return on_click
+
+    def build_delete_query(self) -> typ.Callable:
+        def on_click(query_id):
+            queries = self.__get_queries_reference()
+            queries.pop(query_id)
+            keep = []
+            for i in range(len(self.__queries_output_box.children)):
+                if str(query_id) != self.__queries_output_box.children[i].children[0].description:
+                    keep.append(self.__queries_output_box.children[i])
+            self.__queries_output_box.children = keep
+
+        return on_click
+
+    def build_switch_query(self) -> typ.Callable:
+        def on_click(query_id):
+            active_queries = self.__get_active_queries_reference()
+            q_id = int(query_id)
+            if q_id in active_queries:
+                active_queries.remove(q_id)
+            else:
+                active_queries.append(q_id)
+            self.__construct_query(q_id)
+
+        return on_click
+
+    def build_paint_query(self) -> typ.Callable:
+        def on_click(query_id):
+            queries = self.__get_queries_reference()
+            queries[query_id]['color'] = self.__color_picker.value
+            self.__construct_query(query_id)
+
+        return on_click
+
+    def __build_delete_all_queries(self) -> typ.Callable:
+        def on_click(_):
+            self.__queries_output_box.children = []
+            self.__reset_queries()
+            self.__reset_query_counter()
+
+        return on_click
+
+    def __build_on_mode_change(self) -> typ.Callable:
+        def on_mode_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                ipydisplay.display(ipydisplay.Javascript("je.setMode('" + self.__filter_highlight_toggle_buttons.value
+                                                         + "').switchMode();"))
+                # Redraw queries output completely
+                self.__construct_queries_from_scratch()
+        return on_mode_change
+
+    def __construct_queries_from_scratch(self) -> None:
+        # Empty output box
+        self.__queries_output_box.children = []
+        # Add queries
+        for query_id, query in self.__get_queries_reference().items():
+            w_0 = widgets.Text(description=str(query_id), layout=widgets.Layout(display='none'))
+            w_1 = widgets.HTML(value=self.__construct_query_html(query_id),
+                               layout=widgets.Layout(display='inline-block'))
+            self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
+
+    def __in_filter_mode(self) -> bool:
+        """Returns whether current mode is filter or not (highlight)"""
+        return self.__filter_highlight_toggle_buttons.value == 'Filter'
+
+    def __get_active_queries_reference(self) -> typ.List[int]:
+        """Returns reference to active_queries list corresponding to the current mode: filter or highlight"""
+        active_queries = self.__active_filter_queries if self.__in_filter_mode() else self.__active_highlight_queries
+        return active_queries
+
+    def __get_queries_reference(self) -> typ.Dict:
+        """Returns reference to queries dict corresponding to the current mode: filter or highlight"""
+        return self.__filter_queries if self.__in_filter_mode() else self.__highlight_queries
+
+    def __reset_queries(self) -> None:
+        """Empties queries of current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_queries = dict()
+        else:
+            self.__highlight_queries = dict()
+
+    def __get_query_counter(self) -> int:
+        """Returns the query count corresponding to the current mode: filter or highlight"""
+        return self.__filter_query_counter if self.__in_filter_mode() else self.__highlight_query_counter
+
+    def __increment_query_counter(self) -> None:
+        """Increments the query count corresponding to the current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_query_counter += 1
+        else:
+            self.__highlight_query_counter += 1
+
+    def __reset_query_counter(self) -> None:
+        """Resets the query count to 1 corresponding to the current mode: filter or highlight"""
+        if self.__in_filter_mode():
+            self.__filter_query_counter = 1
+        else:
+            self.__highlight_query_counter = 1
+
+
+def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
+    result = dict((name,
+                   {'type': 'O' if metadata.is_ordered(name) else 'N',
+                    'values': metadata.get_categories(name)})
+                  for name in metadata.get_attribute_names())
+    return result
+
+
+def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable, ) -> vtna.filter.NodeFilter:
+    clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
+    for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
+        clause = build_clause(raw_clause, metadata)
+        clauses.append(clause)
+    result_filter = None
+    for i, clause in enumerate(clauses):
+        if i == 0:
+            result_filter = clause
+        else:
+            result_filter += clause
+    return result_filter
+
+
+def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_import.MetadataTable,
+                                       temp_graph: vtna.graph.TemporalGraph, default_color: str) \
+        -> typ.Dict[int, str]:
+    # Init all nodes with the default color
+    colors = dict((node.get_id(), default_color) for node in temp_graph.get_nodes())
+    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[1]), reverse=True)):
+        raw_clause = raw_clauses['clauses']
+        color = raw_clauses['color']
+        clause = build_clause(raw_clause, metadata)
+        nodes_to_color = clause(temp_graph.get_nodes())
+        for node_id in map(lambda n: n.get_id(), nodes_to_color):
+            colors[node_id] = color
+    return colors
+
+
+def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+        -> vtna.filter.NodeFilter:
+    clause = None
+    for raw_predicate in map(lambda t: t[1], sorted(raw_clause.items(), key=lambda t: int(t[0]))):
+        predicate = build_predicate(raw_predicate, metadata)
+        node_filter = vtna.filter.NodeFilter(predicate)
+        # Case distinction for different operators:
+        op = raw_predicate['operator']
+        if op == 'NEW':
+            clause = node_filter
+        elif op == 'NOT':
+            clause = -node_filter
+        elif op == 'AND':
+            clause *= node_filter
+        elif op == 'OR':
+            clause += node_filter
+        elif op == 'AND NOT':
+            clause *= -node_filter
+        elif op == 'OR NOT':
+            clause += -node_filter
+        else:
+            # Either the front end provided a bad queries dict, or the matching is not correct.
+            raise Exception(f'Unknown filter combinator: {op}')
+    return clause
+
+
+def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+        -> typ.Callable[[vtna.graph.TemporalNode], bool]:
+    # TODO: Currently assumes only string type values. More case distinctions needed for more complex types.
+    # build_predicate assumes correctness of the input in regards to measure type assumptions.
+    # e.g. range type queries will only be made for truly ordinal or interval values.
+    name, value = raw_predicate['value']
+    if isinstance(value, (list, tuple)):  # Range type
+        order = metadata.get_categories(name)
+        lower_bound = vtna.filter.ordinal_attribute_greater_than_equal(name, value[0], order)
+        inv_upper_bound = vtna.filter.ordinal_attribute_greater_than(name, value[1], order)
+        pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
+    else:  # Equality
+        pred = vtna.filter.categorical_attribute_equal(name, value)
+    return pred
