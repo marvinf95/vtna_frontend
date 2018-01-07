@@ -127,10 +127,10 @@ class UIDataUploadManager(object):
             # TODO: Exception catching is not exhaustive yet
             except FileNotFoundError:
                 error_msg = f'File {w.filename} does not exist'
-                self.__display_graph_upload_error(error_msg)
+                self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
-                self.__display_graph_upload_error(error_msg)
+                self.display_graph_upload_error(error_msg)
 
         return handle_local_upload_graph_data
 
@@ -146,10 +146,10 @@ class UIDataUploadManager(object):
             # TODO: Exception catching is not exhaustive yet
             except urllib.error.HTTPError:
                 error_msg = f'Could not access URL {url}'
-                self.__display_graph_upload_error(error_msg)
+                self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Columns 1-3 in {url} cannot be parsed to integers'
-                self.__display_graph_upload_error(error_msg)
+                self.display_graph_upload_error(error_msg)
 
         return handle_network_upload_graph_data
 
@@ -168,10 +168,10 @@ class UIDataUploadManager(object):
             # TODO: Exception catching is not exhaustive yet
             except FileNotFoundError:
                 error_msg = f'File {w.filename} does not exist'
-                self.__display_metadata_upload_error(error_msg)
+                self.display_metadata_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Column 1 in {w.filename} cannot be parsed to integer'
-                self.__display_metadata_upload_error(error_msg)
+                self.display_metadata_upload_error(error_msg)
 
         return handle_local_upload_metadata
 
@@ -185,14 +185,14 @@ class UIDataUploadManager(object):
             # TODO: Exception catching is not exhaustive yet
             except urllib.error.HTTPError:
                 error_msg = f'Could not access URL {url}'
-                self.__display_metadata_upload_error(error_msg)
+                self.display_metadata_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Column 1 in {url} cannot be parsed to integer'
-                self.__display_metadata_upload_error(error_msg)
+                self.display_metadata_upload_error(error_msg)
 
         return handle_network_upload_metadata
 
-    def __display_graph_upload_error(self, msg: str):
+    def display_graph_upload_error(self, msg: str):
         self.__graph_data_text.value = msg
         with self.__graph_data_output:
             ipydisplay.clear_output()
@@ -219,7 +219,7 @@ class UIDataUploadManager(object):
             plt.xticks(x, [''] * len(x))
             plt.show()
 
-    def __display_metadata_upload_error(self, msg):
+    def display_metadata_upload_error(self, msg):
         self.__metadata_data_text.value = msg
         with self.__metadata_data_output:
             ipydisplay.clear_output()
