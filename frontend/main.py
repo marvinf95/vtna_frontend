@@ -486,6 +486,7 @@ class UIAttributeQueriesManager(object):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
         self.__metadata = transform_metadata_to_queries_format(metadata)
+        self.__metadata_table = metadata
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
@@ -695,7 +696,7 @@ class UIAttributeQueriesManager(object):
                 break
 
     def __construct_query_html(self, query_id: int) -> str:
-        is_filter = self.__in_filter_mode()
+        is_filter = self.in_filter_mode()
         current_operator = self.__boolean_combination_dropdown.value
         is_new = current_operator in ['NEW', 'NOT']
         is_active = query_id in self.__get_active_queries_reference()
@@ -842,43 +843,56 @@ class UIAttributeQueriesManager(object):
                                layout=widgets.Layout(display='inline-block'))
             self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
 
-    def __in_filter_mode(self) -> bool:
+    def in_filter_mode(self) -> bool:
         """Returns whether current mode is filter or not (highlight)"""
         return self.__filter_highlight_toggle_buttons.value == 'Filter'
 
     def __get_active_queries_reference(self) -> typ.List[int]:
         """Returns reference to active_queries list corresponding to the current mode: filter or highlight"""
-        active_queries = self.__active_filter_queries if self.__in_filter_mode() else self.__active_highlight_queries
+        active_queries = self.__active_filter_queries if self.in_filter_mode() else self.__active_highlight_queries
         return active_queries
 
     def __get_queries_reference(self) -> typ.Dict:
         """Returns reference to queries dict corresponding to the current mode: filter or highlight"""
-        return self.__filter_queries if self.__in_filter_mode() else self.__highlight_queries
+        return self.__filter_queries if self.in_filter_mode() else self.__highlight_queries
 
     def __reset_queries(self) -> None:
         """Empties queries of current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_queries = dict()
         else:
             self.__highlight_queries = dict()
 
     def __get_query_counter(self) -> int:
         """Returns the query count corresponding to the current mode: filter or highlight"""
-        return self.__filter_query_counter if self.__in_filter_mode() else self.__highlight_query_counter
+        return self.__filter_query_counter if self.in_filter_mode() else self.__highlight_query_counter
 
     def __increment_query_counter(self) -> None:
         """Increments the query count corresponding to the current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_query_counter += 1
         else:
             self.__highlight_query_counter += 1
 
     def __reset_query_counter(self) -> None:
         """Resets the query count to 1 corresponding to the current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_query_counter = 1
         else:
             self.__highlight_query_counter = 1
+
+    def get_node_filter(self) -> vtna.filter.NodeFilter:
+        active_queries = dict((idx, query) for idx, query in self.__filter_queries.items()
+                              if idx in self.__active_filter_queries)
+        node_filter = transform_queries_to_filter(active_queries, self.__metadata_table)
+        return node_filter
+
+    def get_node_colors(self, temp_graph: vtna.graph.TemporalGraph, default_color: str) -> typ.Dict[int, str]:
+        active_queries = dict((idx, query) for idx, query in self.__highlight_queries.items()
+                              if idx in self.__active_highlight_queries)
+        node_colors = transform_queries_to_color_mapping(active_queries, self.__metadata_table, temp_graph,
+                                                         default_color)
+        return node_colors
 
 
 def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
@@ -889,7 +903,7 @@ def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTabl
     return result
 
 
-def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable, ) -> vtna.filter.NodeFilter:
+def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable) -> vtna.filter.NodeFilter:
     clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
     for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
         clause = build_clause(raw_clause, metadata)
