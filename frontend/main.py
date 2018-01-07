@@ -442,8 +442,8 @@ class UIGraphDisplayManager(object):
                             granularity: int
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
-        # TODO: Allow hyperparameters for layout
-        self.__layout = self.__layout_function(self.__temp_graph)
+
+        self.__layout = self.__compute_layout()
 
         self.__time_slider.min = 0
         self.__time_slider.max = len(self.__temp_graph) - 1
@@ -489,7 +489,7 @@ class UIGraphDisplayManager(object):
             # Compute layout, may take time
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
-            self.__layout = self.__layout_function(self.__temp_graph)
+            self.__layout = self.__compute_layout()
             # Refresh display by jumping from original position -> +-1 -> original position.
             # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
             old_value = self.__play.value
@@ -500,6 +500,23 @@ class UIGraphDisplayManager(object):
             self.__apply_layout_button.disabled = False
 
         return apply_layout
+
+    def __compute_layout(self):
+        # Read out parameters of widgets, dependend on selected layout
+        if self.__layout_select.value in [
+            vtna.layout.static_spring_layout,
+            vtna.layout.flexible_spring_layout,
+            vtna.layout.static_weighted_spring_layout,
+            vtna.layout.flexible_weighted_spring_layout
+        ]:
+            return self.__layout_function(
+                temp_graph=self.__temp_graph,
+                node_distance_scale=self.__layout_parameter_nodedistance_slider.value,
+                n_iterations=self.__layout_parameter_iterations_slider.value
+            )
+        elif self.__layout_select.value in [vtna.layout.random_walk_pca_layout]:
+            # TODO: Add widgets for PCA layout
+            return self.__layout_function(self.__temp_graph)
 
 
 class UIAttributeQueriesManager(object):
