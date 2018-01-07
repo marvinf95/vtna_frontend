@@ -407,7 +407,7 @@ class UIGraphDisplayManager(object):
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
             description='Node distance:',
             value=1.0,
-            min=0.01,
+            min=0.1,
             max=100,
             layout=parameter_widget_layout,
             tooltip='Scales the distance between nodes'
