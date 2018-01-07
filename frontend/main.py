@@ -402,6 +402,26 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
         self.__display_layout_description()
 
+        parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
+
+        self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
+            description='Node distance:',
+            value=1.0,
+            min=0.01,
+            max=100,
+            layout=parameter_widget_layout,
+            tooltip='Scales the distance between nodes'
+        )
+
+        self.__layout_parameter_iterations_slider = widgets.IntSlider(
+            description='Iterations:',
+            value=50,
+            min=1,
+            max=500,
+            layout=parameter_widget_layout,
+            tooltip='Amount of iterations of force simulations'
+        )
+
         self.__apply_layout_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -412,6 +432,8 @@ class UIGraphDisplayManager(object):
         self.__apply_layout_button.on_click(self.__build_apply_layout())
 
         self.__layout_vbox.children = [widgets.HBox([self.__layout_select, self.__apply_layout_button]),
+                                       self.__layout_parameter_nodedistance_slider,
+                                       self.__layout_parameter_iterations_slider,
                                        self.__layout_description_output]
 
     def init_temporal_graph(self,
