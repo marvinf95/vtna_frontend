@@ -404,6 +404,8 @@ class UIGraphDisplayManager(object):
 
         parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
 
+        ### Hyperparameters of basic layouts
+
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
             description='Node distance:',
             value=1.0,
@@ -412,7 +414,6 @@ class UIGraphDisplayManager(object):
             layout=parameter_widget_layout,
             tooltip='Scales the distance between nodes'
         )
-
         self.__layout_parameter_iterations_slider = widgets.IntSlider(
             description='Iterations:',
             value=50,
@@ -421,6 +422,45 @@ class UIGraphDisplayManager(object):
             layout=parameter_widget_layout,
             tooltip='Amount of iterations of force simulations'
         )
+
+        ### Hyperparameters of PCA layout
+
+        self.__layout_parameter_PCA_n_slider = widgets.IntSlider(
+            description='n:',
+            value=25,
+            min=1,
+            max=300,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        self.__layout_parameter_PCA_repel_slider = widgets.FloatSlider(
+            description='Repel:',
+            value=1.0,
+            min=0.1,
+            max=100,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        self.__layout_parameter_PCA_p_slider = widgets.IntSlider(
+            description='p:',
+            value=25,
+            min=1,
+            max=70,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        # TODO: Is randomstate a needed hyperparameter? If so, the user must be
+        # TODO: given the option to set it to None with an additional widget.
+        """
+        self.__layout_parameter_PCA_randomstate_slider = widgets.IntSlider(
+            description='Seed:',
+            value=25,
+            min=1,
+            max=5000,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        """
 
         self.__apply_layout_button = widgets.Button(
             description='Apply',
@@ -431,10 +471,7 @@ class UIGraphDisplayManager(object):
 
         self.__apply_layout_button.on_click(self.__build_apply_layout())
 
-        self.__layout_vbox.children = [widgets.HBox([self.__layout_select, self.__apply_layout_button]),
-                                       self.__layout_parameter_nodedistance_slider,
-                                       self.__layout_parameter_iterations_slider,
-                                       self.__layout_description_output]
+        self.__set_current_layout_widgets()
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
@@ -498,11 +535,14 @@ class UIGraphDisplayManager(object):
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
+            # Set widget layout for parameters of new layout
+            self.__set_current_layout_widgets()
 
         return apply_layout
 
     def __compute_layout(self):
-        # Read out parameters of widgets, dependend on selected layout
+        """Returns layout dependent on selected layout and hyperparameters"""
+        # Read out parameters of widgets, dependent on selected layout
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
@@ -514,9 +554,40 @@ class UIGraphDisplayManager(object):
                 node_distance_scale=self.__layout_parameter_nodedistance_slider.value,
                 n_iterations=self.__layout_parameter_iterations_slider.value
             )
-        elif self.__layout_select.value in [vtna.layout.random_walk_pca_layout]:
-            # TODO: Add widgets for PCA layout
-            return self.__layout_function(self.__temp_graph)
+        elif self.__layout_select.value in [
+            vtna.layout.random_walk_pca_layout
+        ]:
+            return self.__layout_function(
+                temp_graph=self.__temp_graph,
+                n=self.__layout_parameter_PCA_n_slider.value,
+                repel=self.__layout_parameter_PCA_repel_slider.value,
+                p=self.__layout_parameter_PCA_p_slider.value
+            )
+
+    def __set_current_layout_widgets(self):
+        """Generates list of widgets for layout_vbox.children"""
+        widget_list = []
+        widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
+        if self.__layout_select.value in [
+            vtna.layout.static_spring_layout,
+            vtna.layout.flexible_spring_layout,
+            vtna.layout.static_weighted_spring_layout,
+            vtna.layout.flexible_weighted_spring_layout
+        ]:
+            widget_list.extend([
+                self.__layout_parameter_nodedistance_slider,
+                self.__layout_parameter_iterations_slider
+            ])
+        elif self.__layout_select.value in [
+            vtna.layout.random_walk_pca_layout
+        ]:
+            widget_list.extend([
+                self.__layout_parameter_PCA_n_slider,
+                self.__layout_parameter_PCA_repel_slider,
+                self.__layout_parameter_PCA_p_slider
+            ])
+        widget_list.append(self.__layout_description_output)
+        self.__layout_vbox.children = widget_list
 
 
 class UIAttributeQueriesManager(object):
