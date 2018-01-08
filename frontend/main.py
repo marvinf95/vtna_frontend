@@ -409,8 +409,7 @@ class UIGraphDisplayManager(object):
 
         parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
 
-        ### Hyperparameters of basic layouts
-
+        # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
             description='Node distance:',
             value=1.0,
@@ -428,8 +427,7 @@ class UIGraphDisplayManager(object):
             tooltip='Amount of iterations of force simulations'
         )
 
-        ### Hyperparameters of PCA layout
-
+        # Hyperparameters of PCA layout
         self.__layout_parameter_PCA_n_slider = widgets.IntSlider(
             description='n:',
             value=25,
@@ -509,8 +507,19 @@ class UIGraphDisplayManager(object):
             axes.set_xlim((-1.2, 1.2))
             axes.set_ylim((-1.2, 1.2))
             nxgraph = vtna.utility.graph2networkx(graph)
+            # This part has to be optimized somehow?
+            nodeset = set(self.__displayed_nodes)
+            # Filter edges based on nodes which are to be displayed.
+            # If we do not filter edges too, edges will still be drawn but without their corresponding nodes.
+            # TODO: Should nodes with no interactions with displayed nodes but interactions with not-displayed nodes be shown
+            #   Currently these nodes are shown.
+            edgelist = [edge for edge in nxgraph.edges() if edge[0] in nodeset and edge[1] in nodeset]
+            if isinstance(self.__node_colors, dict):  # is color mapping
+                colors = [self.__node_colors[node] for node in nxgraph.nodes()]
+            else:  # is string
+                colors = self.__node_colors
             nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
-                             node_color=self.__node_colors, nodes=self.__displayed_nodes)
+                             node_color=colors, nodelist=self.__displayed_nodes, edgelist=edgelist)
             axes.set_title(f'time step: {current_time_step}')
             plt.show()
 
@@ -525,7 +534,7 @@ class UIGraphDisplayManager(object):
             self.__refresh_display()
 
     def __update_displayed_nodes(self, node_filter: vtna.filter.NodeFilter):
-        # TODO: this should replaced by just node_filterself.__temp_graph.get_nodes()), but for some reason i get a warning by the ide then
+        # TODO: this should replaced by just node_filter(self.__temp_graph.get_nodes()), but for some reason i get a warning by the ide then
         self.__displayed_nodes = [node.get_id() for node in node_filter.__call__(self.__temp_graph.get_nodes())]
 
     def __update_node_colors(self, node_colors: typ.Dict[int, str]):
@@ -583,7 +592,7 @@ class UIGraphDisplayManager(object):
 
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
-        widget_list = []
+        widget_list = list()
         widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
@@ -612,6 +621,7 @@ class UIGraphDisplayManager(object):
         old_value = self.__play.value
         self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
         self.__play.value = old_value
+
 
 class UIAttributeQueriesManager(object):
     def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
@@ -755,9 +765,11 @@ class UIAttributeQueriesManager(object):
         self.__apply_to_graph_button = widgets.Button(
             description='Apply',
             disabled=False,
-            button_style='info',
+            button_style='primary',
             tooltip='Apply Queries to Graph',
         )
+        self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
+
         # Main toolbar : Operator, Add
         main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
                                           self.__add_new_clause_msg_html],
@@ -1077,7 +1089,7 @@ def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_im
         -> typ.Dict[int, str]:
     # Init all nodes with the default color
     colors = dict((node.get_id(), default_color) for node in temp_graph.get_nodes())
-    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[1]), reverse=True)):
+    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[0]), reverse=True)):
         raw_clause = raw_clauses['clauses']
         color = raw_clauses['color']
         clause = build_clause(raw_clause, metadata)
