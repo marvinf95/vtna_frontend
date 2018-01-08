@@ -371,6 +371,8 @@ class UIGraphDisplayManager(object):
         vtna.layout.flexible_weighted_spring_layout,
         vtna.layout.random_walk_pca_layout
     ]
+    # TODO: Replace with color picker at some point
+    DEFAULT_COLOR = '#000000'
 
     def __init__(self,
                  time_slider: widgets.IntSlider,
@@ -384,6 +386,9 @@ class UIGraphDisplayManager(object):
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
         self.__granularity = None  # type: int
+
+        self.__node_colors = UIGraphDisplayManager.DEFAULT_COLOR  # type: typ.Union[str, typ.Dict[int, str]]
+        self.__displayed_nodes = list()  # type: typ.List[int]
 
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
         self.__layout = None  # type: typ.List[typ.Dict[int, typ.Tuple[float, float]]]
@@ -402,6 +407,64 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
         self.__display_layout_description()
 
+        parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
+
+        # Hyperparameters of basic layouts
+        self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
+            description='Node distance:',
+            value=1.0,
+            min=0.1,
+            max=100,
+            layout=parameter_widget_layout,
+            tooltip='Scales the distance between nodes'
+        )
+        self.__layout_parameter_iterations_slider = widgets.IntSlider(
+            description='Iterations:',
+            value=50,
+            min=1,
+            max=500,
+            layout=parameter_widget_layout,
+            tooltip='Amount of iterations of force simulations'
+        )
+
+        # Hyperparameters of PCA layout
+        self.__layout_parameter_PCA_n_slider = widgets.IntSlider(
+            description='n:',
+            value=25,
+            min=1,
+            max=300,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        self.__layout_parameter_PCA_repel_slider = widgets.FloatSlider(
+            description='Repel:',
+            value=1.0,
+            min=0.1,
+            max=100,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        self.__layout_parameter_PCA_p_slider = widgets.IntSlider(
+            description='p:',
+            value=25,
+            min=1,
+            max=70,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        # TODO: Is randomstate a needed hyperparameter? If so, the user must be
+        # TODO: given the option to set it to None with an additional widget.
+        """
+        self.__layout_parameter_PCA_randomstate_slider = widgets.IntSlider(
+            description='Seed:',
+            value=25,
+            min=1,
+            max=5000,
+            layout=parameter_widget_layout,
+            tooltip=''
+        )
+        """
+
         self.__apply_layout_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -411,8 +474,7 @@ class UIGraphDisplayManager(object):
 
         self.__apply_layout_button.on_click(self.__build_apply_layout())
 
-        self.__layout_vbox.children = [widgets.HBox([self.__layout_select, self.__apply_layout_button]),
-                                       self.__layout_description_output]
+        self.__set_current_layout_widgets()
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
@@ -420,8 +482,9 @@ class UIGraphDisplayManager(object):
                             granularity: int
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
-        # TODO: Allow hyperparameters for layout
-        self.__layout = self.__layout_function(self.__temp_graph)
+
+        self.__layout = self.__compute_layout()
+        self.__displayed_nodes = [node.get_id() for node in self.__temp_graph.get_nodes()]
 
         self.__time_slider.min = 0
         self.__time_slider.max = len(self.__temp_graph) - 1
@@ -444,12 +507,38 @@ class UIGraphDisplayManager(object):
             axes.set_xlim((-1.2, 1.2))
             axes.set_ylim((-1.2, 1.2))
             nxgraph = vtna.utility.graph2networkx(graph)
+            # This part has to be optimized somehow?
+            nodeset = set(self.__displayed_nodes)
+            # Filter edges based on nodes which are to be displayed.
+            # If we do not filter edges too, edges will still be drawn but without their corresponding nodes.
+            # TODO: Should nodes with no interactions with displayed nodes but interactions with not-displayed nodes be shown
+            #   Currently these nodes are shown.
+            edgelist = [edge for edge in nxgraph.edges() if edge[0] in nodeset and edge[1] in nodeset]
+            if isinstance(self.__node_colors, dict):  # is color mapping
+                colors = [self.__node_colors[node] for node in nxgraph.nodes()]
+            else:  # is string
+                colors = self.__node_colors
             nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
-                             node_color='green')
+                             node_color=colors, nodelist=self.__displayed_nodes, edgelist=edgelist)
             axes.set_title(f'time step: {current_time_step}')
             plt.show()
 
         return display_current_graph
+
+    def notify(self, observable) -> None:
+        if isinstance(observable, UIAttributeQueriesManager):
+            node_filter = observable.get_node_filter()
+            self.__update_displayed_nodes(node_filter)
+            node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
+            self.__update_node_colors(node_colors)
+            self.__refresh_display()
+
+    def __update_displayed_nodes(self, node_filter: vtna.filter.NodeFilter):
+        # TODO: this should replaced by just node_filter(self.__temp_graph.get_nodes()), but for some reason i get a warning by the ide then
+        self.__displayed_nodes = [node.get_id() for node in node_filter.__call__(self.__temp_graph.get_nodes())]
+
+    def __update_node_colors(self, node_colors: typ.Dict[int, str]):
+        self.__node_colors = node_colors
 
     def __display_layout_description(self):
         description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
@@ -467,17 +556,71 @@ class UIGraphDisplayManager(object):
             # Compute layout, may take time
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
-            self.__layout = self.__layout_function(self.__temp_graph)
-            # Refresh display by jumping from original position -> +-1 -> original position.
-            # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
-            old_value = self.__play.value
-            self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
-            self.__play.value = old_value
+            self.__layout = self.__compute_layout()
+            self.__refresh_display()
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
+            # Set widget layout for parameters of new layout
+            self.__set_current_layout_widgets()
 
         return apply_layout
+
+    def __compute_layout(self):
+        """Returns layout dependent on selected layout and hyperparameters"""
+        # Read out parameters of widgets, dependent on selected layout
+        if self.__layout_select.value in [
+            vtna.layout.static_spring_layout,
+            vtna.layout.flexible_spring_layout,
+            vtna.layout.static_weighted_spring_layout,
+            vtna.layout.flexible_weighted_spring_layout
+        ]:
+            return self.__layout_function(
+                temp_graph=self.__temp_graph,
+                node_distance_scale=self.__layout_parameter_nodedistance_slider.value,
+                n_iterations=self.__layout_parameter_iterations_slider.value
+            )
+        elif self.__layout_select.value in [
+            vtna.layout.random_walk_pca_layout
+        ]:
+            return self.__layout_function(
+                temp_graph=self.__temp_graph,
+                n=self.__layout_parameter_PCA_n_slider.value,
+                repel=self.__layout_parameter_PCA_repel_slider.value,
+                p=self.__layout_parameter_PCA_p_slider.value
+            )
+
+    def __set_current_layout_widgets(self):
+        """Generates list of widgets for layout_vbox.children"""
+        widget_list = list()
+        widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
+        if self.__layout_select.value in [
+            vtna.layout.static_spring_layout,
+            vtna.layout.flexible_spring_layout,
+            vtna.layout.static_weighted_spring_layout,
+            vtna.layout.flexible_weighted_spring_layout
+        ]:
+            widget_list.extend([
+                self.__layout_parameter_nodedistance_slider,
+                self.__layout_parameter_iterations_slider
+            ])
+        elif self.__layout_select.value in [
+            vtna.layout.random_walk_pca_layout
+        ]:
+            widget_list.extend([
+                self.__layout_parameter_PCA_n_slider,
+                self.__layout_parameter_PCA_repel_slider,
+                self.__layout_parameter_PCA_p_slider
+            ])
+        widget_list.append(self.__layout_description_output)
+        self.__layout_vbox.children = widget_list
+
+    def __refresh_display(self):
+        # Refresh display by jumping from original position -> +-1 -> original position.
+        # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
+        old_value = self.__play.value
+        self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
+        self.__play.value = old_value
 
 
 class UIAttributeQueriesManager(object):
@@ -486,6 +629,7 @@ class UIAttributeQueriesManager(object):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
         self.__metadata = transform_metadata_to_queries_format(metadata)
+        self.__metadata_table = metadata
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
@@ -504,6 +648,8 @@ class UIAttributeQueriesManager(object):
         self.__filter_query_counter = 1  # type: int
         self.__filter_queries = dict()  # type: typ.Dict
         self.__active_filter_queries = list()  # type: typ.List[int]
+
+        self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
 
         self.__highlight_query_counter = 1  # type: int
         self.__highlight_queries = dict()  # type: typ.Dict
@@ -614,12 +760,23 @@ class UIAttributeQueriesManager(object):
                   "to add a clause to a query</span>")
         # Hiding msg untill 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
+
+        # Apply queries to graph button
+        self.__apply_to_graph_button = widgets.Button(
+            description='Apply',
+            disabled=False,
+            button_style='primary',
+            tooltip='Apply Queries to Graph',
+        )
+        self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
+
         # Main toolbar : Operator, Add
         main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
                                           self.__add_new_clause_msg_html],
                                          layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
-        # Queries toolbar: Reset(delete all), toggle mode
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
+        # Queries toolbar: Reset(delete all), toggle mode, apply to graph
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
+                                             self.__apply_to_graph_button])
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
@@ -628,7 +785,7 @@ class UIAttributeQueriesManager(object):
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_form_vbox, self.__queries_output_box, queries_toolbar_hbox]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -695,7 +852,7 @@ class UIAttributeQueriesManager(object):
                 break
 
     def __construct_query_html(self, query_id: int) -> str:
-        is_filter = self.__in_filter_mode()
+        is_filter = self.in_filter_mode()
         current_operator = self.__boolean_combination_dropdown.value
         is_new = current_operator in ['NEW', 'NOT']
         is_active = query_id in self.__get_active_queries_reference()
@@ -842,43 +999,65 @@ class UIAttributeQueriesManager(object):
                                layout=widgets.Layout(display='inline-block'))
             self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
 
-    def __in_filter_mode(self) -> bool:
+    def in_filter_mode(self) -> bool:
         """Returns whether current mode is filter or not (highlight)"""
         return self.__filter_highlight_toggle_buttons.value == 'Filter'
 
     def __get_active_queries_reference(self) -> typ.List[int]:
         """Returns reference to active_queries list corresponding to the current mode: filter or highlight"""
-        active_queries = self.__active_filter_queries if self.__in_filter_mode() else self.__active_highlight_queries
+        active_queries = self.__active_filter_queries if self.in_filter_mode() else self.__active_highlight_queries
         return active_queries
 
     def __get_queries_reference(self) -> typ.Dict:
         """Returns reference to queries dict corresponding to the current mode: filter or highlight"""
-        return self.__filter_queries if self.__in_filter_mode() else self.__highlight_queries
+        return self.__filter_queries if self.in_filter_mode() else self.__highlight_queries
 
     def __reset_queries(self) -> None:
         """Empties queries of current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_queries = dict()
         else:
             self.__highlight_queries = dict()
 
     def __get_query_counter(self) -> int:
         """Returns the query count corresponding to the current mode: filter or highlight"""
-        return self.__filter_query_counter if self.__in_filter_mode() else self.__highlight_query_counter
+        return self.__filter_query_counter if self.in_filter_mode() else self.__highlight_query_counter
 
     def __increment_query_counter(self) -> None:
         """Increments the query count corresponding to the current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_query_counter += 1
         else:
             self.__highlight_query_counter += 1
 
     def __reset_query_counter(self) -> None:
         """Resets the query count to 1 corresponding to the current mode: filter or highlight"""
-        if self.__in_filter_mode():
+        if self.in_filter_mode():
             self.__filter_query_counter = 1
         else:
             self.__highlight_query_counter = 1
+
+    def get_node_filter(self) -> vtna.filter.NodeFilter:
+        active_queries = dict((idx, query) for idx, query in self.__filter_queries.items()
+                              if idx in self.__active_filter_queries)
+        node_filter = transform_queries_to_filter(active_queries, self.__metadata_table)
+        return node_filter
+
+    def get_node_colors(self, temp_graph: vtna.graph.TemporalGraph, default_color: str) -> typ.Dict[int, str]:
+        active_queries = dict((idx, query) for idx, query in self.__highlight_queries.items()
+                              if idx in self.__active_highlight_queries)
+        node_colors = transform_queries_to_color_mapping(active_queries, self.__metadata_table, temp_graph,
+                                                         default_color)
+        return node_colors
+
+    # Observer pattern for updating observing UI managers
+    # TODO: Generalize to arbitrary observers and observables?
+    def register_graph_display_manager(self, manager: UIGraphDisplayManager):
+        self.__graph_display_managers.append(manager)
+
+    def __notify_all(self):
+        for manager in self.__graph_display_managers:
+            manager.notify(self)
 
 
 def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
@@ -889,7 +1068,7 @@ def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTabl
     return result
 
 
-def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable, ) -> vtna.filter.NodeFilter:
+def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable) -> vtna.filter.NodeFilter:
     clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
     for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
         clause = build_clause(raw_clause, metadata)
@@ -900,6 +1079,8 @@ def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.Me
             result_filter = clause
         else:
             result_filter += clause
+    if result_filter is None:
+        result_filter = vtna.filter.NodeFilter(lambda _: True)
     return result_filter
 
 
@@ -908,7 +1089,7 @@ def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_im
         -> typ.Dict[int, str]:
     # Init all nodes with the default color
     colors = dict((node.get_id(), default_color) for node in temp_graph.get_nodes())
-    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[1]), reverse=True)):
+    for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[0]), reverse=True)):
         raw_clause = raw_clauses['clauses']
         color = raw_clauses['color']
         clause = build_clause(raw_clause, metadata)
