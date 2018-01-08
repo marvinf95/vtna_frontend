@@ -14,3 +14,4 @@ cover/
 frontend/*.csv
 frontend/*.dat
 frontend/metadata_2013.txt
+frontend/__pycache__/

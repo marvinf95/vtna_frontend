@@ -371,6 +371,8 @@ class UIGraphDisplayManager(object):
         vtna.layout.flexible_weighted_spring_layout,
         vtna.layout.random_walk_pca_layout
     ]
+    # TODO: Replace with color picker at some point
+    DEFAULT_COLOR = '#000000'
 
     def __init__(self,
                  time_slider: widgets.IntSlider,
@@ -384,6 +386,9 @@ class UIGraphDisplayManager(object):
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
         self.__granularity = None  # type: int
+
+        self.__node_colors = UIGraphDisplayManager.DEFAULT_COLOR  # type: typ.Union[str, typ.Dict[int, str]]
+        self.__displayed_nodes = list()  # type: typ.List[int]
 
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
         self.__layout = None  # type: typ.List[typ.Dict[int, typ.Tuple[float, float]]]
@@ -422,6 +427,7 @@ class UIGraphDisplayManager(object):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         # TODO: Allow hyperparameters for layout
         self.__layout = self.__layout_function(self.__temp_graph)
+        self.__displayed_nodes = [node.get_id() for node in self.__temp_graph.get_nodes()]
 
         self.__time_slider.min = 0
         self.__time_slider.max = len(self.__temp_graph) - 1
@@ -445,11 +451,26 @@ class UIGraphDisplayManager(object):
             axes.set_ylim((-1.2, 1.2))
             nxgraph = vtna.utility.graph2networkx(graph)
             nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
-                             node_color='green')
+                             node_color=self.__node_colors, nodes=self.__displayed_nodes)
             axes.set_title(f'time step: {current_time_step}')
             plt.show()
 
         return display_current_graph
+
+    def notify(self, observable) -> None:
+        if isinstance(observable, UIAttributeQueriesManager):
+            node_filter = observable.get_node_filter()
+            self.__update_displayed_nodes(node_filter)
+            node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
+            self.__update_node_colors(node_colors)
+            self.__refresh_display()
+
+    def __update_displayed_nodes(self, node_filter: vtna.filter.NodeFilter):
+        # TODO: this should replaced by just node_filterself.__temp_graph.get_nodes()), but for some reason i get a warning by the ide then
+        self.__displayed_nodes = [node.get_id() for node in node_filter.__call__(self.__temp_graph.get_nodes())]
+
+    def __update_node_colors(self, node_colors: typ.Dict[int, str]):
+        self.__node_colors = node_colors
 
     def __display_layout_description(self):
         description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
@@ -468,17 +489,19 @@ class UIGraphDisplayManager(object):
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
             self.__layout = self.__layout_function(self.__temp_graph)
-            # Refresh display by jumping from original position -> +-1 -> original position.
-            # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
-            old_value = self.__play.value
-            self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
-            self.__play.value = old_value
+            self.__refresh_display()
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
 
         return apply_layout
 
+    def __refresh_display(self):
+        # Refresh display by jumping from original position -> +-1 -> original position.
+        # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
+        old_value = self.__play.value
+        self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
+        self.__play.value = old_value
 
 class UIAttributeQueriesManager(object):
     def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
@@ -505,6 +528,8 @@ class UIAttributeQueriesManager(object):
         self.__filter_query_counter = 1  # type: int
         self.__filter_queries = dict()  # type: typ.Dict
         self.__active_filter_queries = list()  # type: typ.List[int]
+
+        self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
 
         self.__highlight_query_counter = 1  # type: int
         self.__highlight_queries = dict()  # type: typ.Dict
@@ -615,12 +640,21 @@ class UIAttributeQueriesManager(object):
                   "to add a clause to a query</span>")
         # Hiding msg untill 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
+
+        # Apply queries to graph button
+        self.__apply_to_graph_button = widgets.Button(
+            description='Apply',
+            disabled=False,
+            button_style='info',
+            tooltip='Apply Queries to Graph',
+        )
         # Main toolbar : Operator, Add
         main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
                                           self.__add_new_clause_msg_html],
                                          layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
-        # Queries toolbar: Reset(delete all), toggle mode
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
+        # Queries toolbar: Reset(delete all), toggle mode, apply to graph
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
+                                             self.__apply_to_graph_button])
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
@@ -629,7 +663,7 @@ class UIAttributeQueriesManager(object):
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_form_vbox, self.__queries_output_box, queries_toolbar_hbox]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -894,6 +928,15 @@ class UIAttributeQueriesManager(object):
                                                          default_color)
         return node_colors
 
+    # Observer pattern for updating observing UI managers
+    # TODO: Generalize to arbitrary observers and observables?
+    def register_graph_display_manager(self, manager: UIGraphDisplayManager):
+        self.__graph_display_managers.append(manager)
+
+    def __notify_all(self):
+        for manager in self.__graph_display_managers:
+            manager.notify(self)
+
 
 def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
     result = dict((name,
@@ -914,6 +957,8 @@ def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.Me
             result_filter = clause
         else:
             result_filter += clause
+    if result_filter is None:
+        result_filter = vtna.filter.NodeFilter(lambda _: True)
     return result_filter
 
 
