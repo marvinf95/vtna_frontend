@@ -1,0 +1,17 @@
+ul.attrlist {
+	list-style-type: none;
+}
+
+ul.attrlist li {
+    margin-top: 1px;
+    text-align: center;
+    border: 2px;
+    border-radius: 4px;
+    border-style: solid;
+    /* Border prevents moving of elements when switching ordinal checkbox */
+    border-color: #ffffff
+}
+
+ul.sortlist li {
+    border-color: #d4dcff;
+}
