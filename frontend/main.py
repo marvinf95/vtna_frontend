@@ -351,7 +351,7 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
     for i in range(len(col_names)):
         # Create table header plus checkbox for ordering
         header_html += f'<th>{col_names[i]}<br>{cb1}{i}{cb2}</th>'
-    header_html = f"<tr>{header_html}</tr>"
+    header_html = f'<tr background="#FFFFFF">{header_html}</tr>'
 
     # Contains all attribute lists
     body_html = ""
