@@ -21,6 +21,7 @@ import vtna.utility
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
+    UPLOAD_DIR = 'upload/'  # type: str
 
     def __init__(self,
                  # Run button switches to Display graph step, should be disabled by default and enabled on set
@@ -115,13 +116,13 @@ class UIDataUploadManager(object):
             try:
                 # Upload and store file to notebook directory
                 # TODO: put it into a tmp folder
-                with open(w.filename, 'wb') as f:
+                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__graph_data_text.value = w.filename
                 # Save file name of graph data
                 self.__graph_data_file_name = w.filename
                 # Import graph as edge list via vtna
-                self.__edge_list = vtna.data_import.read_edge_table(w.filename)
+                self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -157,11 +158,11 @@ class UIDataUploadManager(object):
         def handle_local_upload_metadata(change):
             w = change['owner']
             try:
-                with open(w.filename, 'wb') as f:
+                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__metadata_data_text.value = w.filename
                 # Load metadata
-                self.__metadata = vtna.data_import.MetadataTable(w.filename)
+                self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
@@ -518,8 +519,10 @@ class UIGraphDisplayManager(object):
                 colors = [self.__node_colors[node] for node in nxgraph.nodes()]
             else:  # is string
                 colors = self.__node_colors
+            # Ensure only nodes which have to be displayed are in the nodelist.
+            nodelist = list(nodeset.intersection(set(nxgraph.nodes())))
             nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
-                             node_color=colors, nodelist=self.__displayed_nodes, edgelist=edgelist)
+                             node_color=colors, nodelist=nodelist, edgelist=edgelist)
             axes.set_title(f'time step: {current_time_step}')
             plt.show()
 
