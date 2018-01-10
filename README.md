@@ -22,8 +22,10 @@ docker run --name vtna -t -p 8888:8888 $IMAGENAME:$TAG
 Now you can click on the URL shown in the Terminal. This will open the notebook in your browser.
 
 ### Stop and start container
+```bash
 docker stop vtna
 docker start vtna
+```
 
 ### Cleanup
 Delete the docker container and the image.
