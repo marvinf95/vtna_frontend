@@ -413,7 +413,7 @@ class UIGraphDisplayManager(object):
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
-            description='Node distance:',
+            description='Repel:',
             value=1.0,
             min=0.1,
             max=100,
