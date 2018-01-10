@@ -1,5 +1,6 @@
 ## https://hub.docker.com/r/jupyter/minimal-notebook/
 FROM jupyter/minimal-notebook
+LABEL version="0.1" description="Installs the application of the VTNA project at the University Koblenz" maintainer="marvinforster@uni-koblenz.de"
 
 USER root
 
