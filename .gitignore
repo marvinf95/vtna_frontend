@@ -1,6 +1,6 @@
 *.pyc
 /dist/
-/*.egg-info
+*.egg-info
 .idea/
 vtna/__pycache__/
 vtna/tests/__pycache__/
@@ -11,3 +11,5 @@ vtna/vtna/tests/__pycache__/
 venv/
 cover/
 .ipynb_checkpoints/
+frontend/upload/*
+frontend/__pycache__/

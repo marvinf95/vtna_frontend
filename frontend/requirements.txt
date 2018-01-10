@@ -1,0 +1,8 @@
+jupyter
+ipywidgets
+fileupload
+matplotlib
+networkx
+IPython
+vtna
+pystache
