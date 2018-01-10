@@ -5,6 +5,7 @@ Forschungspraktikum at West Institute
 
 
 ## Using the application with Docker
+### Installation
 Prerequisites:
 * Installed docker
   * Running docker service
@@ -15,11 +16,21 @@ After building the image a container that is running the notebook will be create
 ```bash
 git clone $REPO
 docker build -t $IMAGENAME:$TAG .
-docker run -ti -p 8888:8888 $IMAGENAME:$TAG
+docker run --name vtna -t -p 8888:8888 $IMAGENAME:$TAG
 ```
 
 Now you can click on the URL shown in the Terminal. This will open the notebook in your browser.
 
+### Stop and start container
+docker stop vtna
+docker start vtna
+
+### Cleanup
+Delete the docker container and the image.
+```bash
+docker stop vtna && docker rm vtna
+docker rmi $IMAGENAME:$TAG
+```
 
 ## Team
 
