@@ -4,6 +4,5 @@ fileupload
 matplotlib
 networkx
 IPython
-vtna
 pystache
 plotly
