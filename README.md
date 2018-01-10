@@ -5,11 +5,11 @@ Forschungspraktikum at West Institute
 
 
 ## Installation
-'''bash
+```bash
 git clone $REPO
 docker build -t $IMAGENAME:$TAG .
 docker run -ti -p 8888:8888 $IMAGENAME:$TAG
-'''
+```
 
 Now you can click on the URL shown in the Terminal. This will open the notebook in your browser.
 
