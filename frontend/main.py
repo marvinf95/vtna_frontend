@@ -1123,6 +1123,9 @@ class TemporalGraphFigure(object):
             'layout': {},
             'frames': []
         }
+        self.__figure_data['layout']['autosize'] = False
+        self.__figure_data['layout']['width'] = 800
+        self.__figure_data['layout']['height'] = 800
         self.__figure_data['layout']['hovermode'] = 'closest'
         self.__figure_data['layout']['sliders'] = {
             'args': [
