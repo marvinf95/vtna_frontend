@@ -20,8 +20,8 @@ USER root
 
 RUN jupyter nbextension enable --py widgetsnbextension && jupyter nbextension install --py fileupload && jupyter nbextension enable --py fileupload
 
-
 USER jovyan
-#EXPOSE 8888:8888
 
-CMD jupyter notebook --ip 0.0.0.0 --no-browser
+EXPOSE 8888
+
+CMD jupyter notebook --ip 0.0.0.0 --no-browser frontend/vtna.ipynb
