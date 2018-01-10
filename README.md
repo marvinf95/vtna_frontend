@@ -4,7 +4,14 @@ Forschungspraktikum at West Institute
 [Wiki](https://gitlab.uni-koblenz.de/marvinforster/vtna/wikis/home)
 
 
-## Installation
+## Using the application with Docker
+Prerequisites:
+* Installed docker
+  * Running docker service
+  * Docker CLI
+
+The following commands that need to be executed in a terminal create a docker image with a jupyter notebook and the full application.
+After building the image a container that is running the notebook will be created.
 ```bash
 git clone $REPO
 docker build -t $IMAGENAME:$TAG .
@@ -12,6 +19,7 @@ docker run -ti -p 8888:8888 $IMAGENAME:$TAG
 ```
 
 Now you can click on the URL shown in the Terminal. This will open the notebook in your browser.
+
 
 ## Team
 
