@@ -76,6 +76,12 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]]):
+        for attribute_id, attribute_order in order_dict.items():
+            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
+            self.__metadata.order_categories(attribute_name, order)
+
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
         def on_toogle_upload_type(change):

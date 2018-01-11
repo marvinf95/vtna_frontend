@@ -9,7 +9,7 @@ var enableSorting = function (ul_list, id) {
         var orderList = e.detail.newEndList;
         var kernel = IPython.notebook.kernel;
         // Assign values to python dictionary
-        var pythonCommand = "order_list[" + id + "] = {";
+        var pythonCommand = "order_dict[" + id + "] = {";
         for (var i = 0; i < orderList.length; i++) {
             pythonCommand += i + ": " + orderList[i].value;
             // Append comma if not last dictionary entry
