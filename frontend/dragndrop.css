@@ -3,13 +3,22 @@ ul.attrlist {
 }
 
 ul.attrlist li {
-    margin-top: 1px;
+    margin-top: 2px;
+    padding: 1px;
+    padding-left: 5px;
+    padding-right: 5px;
     text-align: center;
     border: 2px;
     border-radius: 4px;
     border-style: solid;
     /* Border prevents moving of elements when switching ordinal checkbox */
     border-color: #ffffff
+}
+
+/*Prevents blue blackground on hover on D&D list.
+ID is used because class attributes are overwritten.*/
+tr#nohover:hover {
+    background: #FFFFFF;
 }
 
 ul.sortlist li {

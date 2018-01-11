@@ -342,30 +342,28 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
 
     # table header with attribute/column names
     header_html = ""
-    # These cant be put into the header string because the " cant be escaped in fstrings
-    cb1 = """
-        <input type="checkbox" value=\""""
-    cb2 = '" onchange="toggleSortable(this)">'
-    # A index based for loop is needed to set indexes on the checkboxes
-    i = 0
-    for i in range(len(col_names)):
+    # Checkbox for toggling ordinal
+    checkbox_html = """
+        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+    for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_names[i]}<br>{cb1}{i}{cb2}</th>'
-    header_html = f'<tr background="#FFFFFF">{header_html}</tr>'
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+    header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists
     body_html = ""
     for category in categories:
+        list_width = max(map(len, category))
         # list of lis for every attribute category
-        #TODO: Set width manually to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}">{category[element_id]}</li>' for element_id in range(len(category))]
+        # TODO: Make width work to prevent resizing on D&D
+        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener
         ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
         # Surround with td that aligns text at the top, otherwise it would be centered
         ul = f'<td style="vertical-align:top">{ul}</td>'
         body_html += ul
-    body_html = f'<tr>{body_html}</tr>'
+    body_html = f'<tr id="nohover">{body_html}</tr>'
 
     table_html = f"""
         <table>
