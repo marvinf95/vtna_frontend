@@ -7,6 +7,7 @@ Forschungspraktikum at West Institute
 ## Using the application with Docker
 ### Installation
 Prerequisites:
+* Internet connection
 * Installed docker
   * Running docker service
   * Docker CLI
