@@ -78,6 +78,19 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
+        for attribute_id, enabled in order_enabled.items():
+            if not enabled:
+                continue
+            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+            if attribute_id in order_dict:
+                attribute_order = order_dict[attribute_id]
+            else:
+                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
+                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
+            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
+            self.__metadata.order_categories(attribute_name, order)
+
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
         def on_toogle_upload_type(change):
@@ -341,19 +354,32 @@ def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
 def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
     col_names = metadata.get_attribute_names()
     categories = [metadata.get_categories(name) for name in col_names]
-    max_categories = max(map(len, categories))
 
-    table_rows = list()
-    for row in range(max_categories):
-        table_rows.append(list())
-        for col in range(len(col_names)):
-            if len(categories[col]) > row:
-                table_rows[row].append(categories[col][row])
-            else:
-                table_rows[row].append('')
+    # table header with attribute/column names
+    header_html = ""
+    # Checkbox for toggling ordinal
+    checkbox_html = """
+        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+    for i, col_name in enumerate(col_names):
+        # Create table header plus checkbox for ordering
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+    header_html = f'<tr>{header_html}</tr>'
 
-    header_html = f'<tr>{"".join(f"<th>{name}</th>" for name in col_names)}</tr>'
-    body_html = ''.join('<tr>{}</tr>'.format(''.join(f'<td>{cell}</td>' for cell in row)) for row in table_rows)
+    # Contains all attribute lists
+    body_html = ""
+    for category in categories:
+        list_width = max(map(len, category))
+        # list of lis for every attribute category
+        # TODO: Make width work to prevent resizing on D&D
+        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in range(len(category))]
+        # ul element of a category, attrlist class is for general styling, id is needed for
+        # attaching the sortable js listener
+        ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
+        # Surround with td that aligns text at the top, otherwise it would be centered
+        ul = f'<td style="vertical-align:top">{ul}</td>'
+        body_html += ul
+    body_html = f'<tr id="nohover">{body_html}</tr>'
+
     table_html = f"""
         <table>
             {header_html}
@@ -454,18 +480,6 @@ class UIGraphDisplayManager(object):
             layout=parameter_widget_layout,
             tooltip=''
         )
-        # TODO: Is randomstate a needed hyperparameter? If so, the user must be
-        # TODO: given the option to set it to None with an additional widget.
-        """
-        self.__layout_parameter_PCA_randomstate_slider = widgets.IntSlider(
-            description='Seed:',
-            value=25,
-            min=1,
-            max=5000,
-            layout=parameter_widget_layout,
-            tooltip=''
-        )
-        """
 
         self.__apply_layout_button = widgets.Button(
             description='Apply',
@@ -1123,6 +1137,9 @@ class TemporalGraphFigure(object):
             'layout': {},
             'frames': []
         }
+        self.__figure_data['layout']['autosize'] = False
+        self.__figure_data['layout']['width'] = 800
+        self.__figure_data['layout']['height'] = 800
         self.__figure_data['layout']['hovermode'] = 'closest'
         self.__figure_data['layout']['sliders'] = {
             'args': [
