@@ -76,8 +76,10 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]]):
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
         for attribute_id, attribute_order in order_dict.items():
+            if not order_enabled[attribute_id]:
+                continue
             attribute_name = self.__metadata.get_attribute_names()[attribute_id]
             order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
             self.__metadata.order_categories(attribute_name, order)

@@ -1,3 +1,5 @@
+var kernel = IPython.notebook.kernel;
+
 var enableSorting = function (ul_list, id) {
     sortable(ul_list, {
         forcePlaceholderSize: true
@@ -7,7 +9,6 @@ var enableSorting = function (ul_list, id) {
         e.detail.newEndList contains all elements in the list the dragged item was dragged to
         */
         var orderList = e.detail.newEndList;
-        var kernel = IPython.notebook.kernel;
         // Assign values to python dictionary
         var pythonCommand = "order_dict[" + id + "] = {";
         for (var i = 0; i < orderList.length; i++) {
@@ -19,16 +20,20 @@ var enableSorting = function (ul_list, id) {
         }
         pythonCommand += "}"
         kernel.execute(pythonCommand);
+
     });
+    kernel.execute("order_enabled[" + id + "] = True");
 };
 
 var disableSorting = function (ul_list, id) {
-    sortable(ul_list, 'destroy')
+    sortable(ul_list, 'destroy');
+    kernel.execute("order_enabled[" + id + "] = False");
 };
 
 function toggleSortable(checkbox) {
     ul_list = document.getElementById("attr_list" + checkbox.value);
     if(checkbox.checked) {
+        // For changing list style to make sortability visible
         ul_list.classList.add('sortlist')
         enableSorting(ul_list, checkbox.value)
     } else {
