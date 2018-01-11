@@ -1108,6 +1108,8 @@ class TemporalGraphFigure(object):
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
                  color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__temp_graph = temp_graph
+        # Retrieve nodes once to ensure same order
+        self.__nodes = self.__temp_graph.get_nodes()
         self.__layout = layout
         self.__color_map = color_map
         self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
@@ -1117,7 +1119,7 @@ class TemporalGraphFigure(object):
         self.__recompute_frames = False  # type: bool
         self.__build_data_frames()
 
-    def __reset_data(self):
+    def __init_data(self):
         self.__figure_data = {
             'data': [],
             'layout': {},
@@ -1185,9 +1187,9 @@ class TemporalGraphFigure(object):
         }
 
     def __build_data_frames(self):
-        self.__reset_data()
+        self.__init_data()
 
-        node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
+        node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
 
         for i, graph in enumerate(self.__temp_graph):
             frame = {'data': [], 'name': str(i)}
@@ -1263,7 +1265,17 @@ class TemporalGraphFigure(object):
 
     def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__color_map = color_map
-        self.__recompute_frames = True
+        node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
+        for i in range(len(self.__figure_data['frames'])):
+            used_node_ids = set(node for edge in self.__temp_graph[i].get_edges() for node in edge.get_incident_nodes())
+            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
+
+            if isinstance(self.__color_map, dict):
+                colors = [self.__color_map[node_id] for node_id in used_node_ids]
+            else:
+                colors = self.__color_map
+
+            self.__figure_data['frames'][i][1]['marker']['color'] = colors
 
     def update_filter(self, node_filter: vtna.filter.NodeFilter):
         self.__node_filter = node_filter
