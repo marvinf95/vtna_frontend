@@ -1,3 +1,4 @@
+import datetime
 import typing as typ
 import urllib
 import urllib.error
@@ -6,7 +7,7 @@ import fileupload
 import IPython.display as ipydisplay
 from ipywidgets import widgets
 import matplotlib.pyplot as plt
-import networkx as nx
+import plotly.graph_objs
 import pystache
 
 import vtna.data_import
@@ -21,6 +22,7 @@ import vtna.utility
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
+    UPLOAD_DIR = 'upload/'  # type: str
 
     def __init__(self,
                  # Run button switches to Display graph step, should be disabled by default and enabled on set
@@ -123,13 +125,13 @@ class UIDataUploadManager(object):
             try:
                 # Upload and store file to notebook directory
                 # TODO: put it into a tmp folder
-                with open(w.filename, 'wb') as f:
+                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__graph_data_text.value = w.filename
                 # Save file name of graph data
                 self.__graph_data_file_name = w.filename
                 # Import graph as edge list via vtna
-                self.__edge_list = vtna.data_import.read_edge_table(w.filename)
+                self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
@@ -165,11 +167,11 @@ class UIDataUploadManager(object):
         def handle_local_upload_metadata(change):
             w = change['owner']
             try:
-                with open(w.filename, 'wb') as f:
+                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__metadata_data_text.value = w.filename
                 # Load metadata
-                self.__metadata = vtna.data_import.MetadataTable(w.filename)
+                self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
@@ -397,22 +399,22 @@ class UIGraphDisplayManager(object):
 
     def __init__(self,
                  time_slider: widgets.IntSlider,
-                 play: widgets.Play,
+                 display_vbox: widgets.VBox,
                  layout_vbox: widgets.VBox
                  ):
         self.__time_slider = time_slider
-        self.__play = play
+        self.__display_vbox = display_vbox
+        self.__display_output = widgets.Output()
+        self.__display_vbox.children = [self.__display_output]
         self.__layout_vbox = layout_vbox
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
         self.__granularity = None  # type: int
 
-        self.__node_colors = UIGraphDisplayManager.DEFAULT_COLOR  # type: typ.Union[str, typ.Dict[int, str]]
-        self.__displayed_nodes = list()  # type: typ.List[int]
-
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
-        self.__layout = None  # type: typ.List[typ.Dict[int, typ.Tuple[float, float]]]
+
+        self.__figure = None  # type: TemporalGraphFigure
 
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
         self.__layout_select = widgets.Dropdown(
@@ -432,7 +434,7 @@ class UIGraphDisplayManager(object):
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
-            description='Node distance:',
+            description='Repel:',
             value=1.0,
             min=0.1,
             max=100,
@@ -491,63 +493,25 @@ class UIGraphDisplayManager(object):
                             granularity: int
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
-
-        self.__layout = self.__compute_layout()
-        self.__displayed_nodes = [node.get_id() for node in self.__temp_graph.get_nodes()]
-
-        self.__time_slider.min = 0
-        self.__time_slider.max = len(self.__temp_graph) - 1
-        self.__time_slider.value = 0
-
-        self.__play.min = 0
-        self.__play.max = len(self.__temp_graph)
-        self.__play.value = 0
-
+        layout = self.__compute_layout()
+        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, UIGraphDisplayManager.DEFAULT_COLOR)
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+    def display_graph(self):
+        with self.__display_output:
+            ipydisplay.clear_output()
+            plotly.offline.iplot(self.__figure.get_figure(), config={})
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
 
-    def build_display_current_graph(self, fig_num: int) -> typ.Callable[[int], None]:
-        def display_current_graph(current_time_step: int):
-            graph = self.__temp_graph[current_time_step]
-            plt.figure(fig_num, figsize=(8, 8))
-            axes = plt.gca()
-            axes.set_xlim((-1.2, 1.2))
-            axes.set_ylim((-1.2, 1.2))
-            nxgraph = vtna.utility.graph2networkx(graph)
-            # This part has to be optimized somehow?
-            nodeset = set(self.__displayed_nodes)
-            # Filter edges based on nodes which are to be displayed.
-            # If we do not filter edges too, edges will still be drawn but without their corresponding nodes.
-            # TODO: Should nodes with no interactions with displayed nodes but interactions with not-displayed nodes be shown
-            #   Currently these nodes are shown.
-            edgelist = [edge for edge in nxgraph.edges() if edge[0] in nodeset and edge[1] in nodeset]
-            if isinstance(self.__node_colors, dict):  # is color mapping
-                colors = [self.__node_colors[node] for node in nxgraph.nodes()]
-            else:  # is string
-                colors = self.__node_colors
-            nx.draw_networkx(nxgraph, self.__layout[current_time_step], ax=axes, with_labels=False, node_size=75,
-                             node_color=colors, nodelist=self.__displayed_nodes, edgelist=edgelist)
-            axes.set_title(f'time step: {current_time_step}')
-            plt.show()
-
-        return display_current_graph
-
     def notify(self, observable) -> None:
         if isinstance(observable, UIAttributeQueriesManager):
             node_filter = observable.get_node_filter()
-            self.__update_displayed_nodes(node_filter)
+            self.__figure.update_filter(node_filter)
             node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
-            self.__update_node_colors(node_colors)
-            self.__refresh_display()
-
-    def __update_displayed_nodes(self, node_filter: vtna.filter.NodeFilter):
-        # TODO: this should replaced by just node_filter(self.__temp_graph.get_nodes()), but for some reason i get a warning by the ide then
-        self.__displayed_nodes = [node.get_id() for node in node_filter.__call__(self.__temp_graph.get_nodes())]
-
-    def __update_node_colors(self, node_colors: typ.Dict[int, str]):
-        self.__node_colors = node_colors
+            self.__figure.update_colors(node_colors)
+            self.display_graph()
 
     def __display_layout_description(self):
         description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
@@ -562,16 +526,19 @@ class UIGraphDisplayManager(object):
             self.__apply_layout_button.disabled = True
             old_button_name = self.__apply_layout_button.description
             self.__apply_layout_button.description = 'Loading...'
-            # Compute layout, may take time
+            # Compute layout...
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
-            self.__layout = self.__compute_layout()
-            self.__refresh_display()
+            layout = self.__compute_layout()
+            # ... and update figure
+            self.__figure.update_layout(layout)
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
             # Set widget layout for parameters of new layout
             self.__set_current_layout_widgets()
+            # Update graph display
+            self.display_graph()
 
         return apply_layout
 
@@ -623,13 +590,6 @@ class UIGraphDisplayManager(object):
             ])
         widget_list.append(self.__layout_description_output)
         self.__layout_vbox.children = widget_list
-
-    def __refresh_display(self):
-        # Refresh display by jumping from original position -> +-1 -> original position.
-        # Looks like an ugly fix to get a refresh, but I did not find a better way to do it.
-        old_value = self.__play.value
-        self.__play.value = old_value - 1 if old_value > 0 else old_value + 1
-        self.__play.value = old_value
 
 
 class UIAttributeQueriesManager(object):
@@ -917,6 +877,7 @@ class UIAttributeQueriesManager(object):
             self.__construct_query(query_counter_read)
 
             self.__increment_query_counter()
+
         return on_click
 
     def build_add_query_clause(self) -> typ.Callable:
@@ -947,6 +908,7 @@ class UIAttributeQueriesManager(object):
                     queries[query_id]['clauses'][new_initial_idx]['operator'] = \
                         'NOT' if 'NOT' in queries[query_id]['clauses'][new_initial_idx]['operator'] else 'NEW'
                 self.__construct_query(query_id)
+
         return on_click
 
     def build_delete_query(self) -> typ.Callable:
@@ -996,6 +958,7 @@ class UIAttributeQueriesManager(object):
                                                          + "').switchMode();"))
                 # Redraw queries output completely
                 self.__construct_queries_from_scratch()
+
         return on_mode_change
 
     def __construct_queries_from_scratch(self) -> None:
@@ -1148,3 +1111,173 @@ def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.Metadata
     else:  # Equality
         pred = vtna.filter.categorical_attribute_equal(name, value)
     return pred
+
+
+class TemporalGraphFigure(object):
+    def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
+                 color_map: typ.Union[str, typ.Dict[int, str]]):
+        self.__temp_graph = temp_graph
+        self.__layout = layout
+        self.__color_map = color_map
+        self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
+        self.__figure_data = None  # type: typ.Dict
+        self.__sliders_data = None  # type: typ.Dict
+        self.__figure_plot = None  # type: plt.Figure
+        self.__recompute_frames = False  # type: bool
+        self.__build_data_frames()
+
+    def __reset_data(self):
+        self.__figure_data = {
+            'data': [],
+            'layout': {},
+            'frames': []
+        }
+        self.__figure_data['layout']['autosize'] = False
+        self.__figure_data['layout']['width'] = 800
+        self.__figure_data['layout']['height'] = 800
+        self.__figure_data['layout']['hovermode'] = 'closest'
+        self.__figure_data['layout']['sliders'] = {
+            'args': [
+                'transition', {
+                    'duration': 400,
+                    'easing': 'cubic-in-out',
+                }
+            ],
+            'initialValue': '0',
+            'plotlycommand': 'animate',
+            'values': len(self.__temp_graph),
+            'visible': True
+        }
+        self.__figure_data['layout']['updatemenus'] = [
+            {
+                'buttons': [
+                    {
+                        'args': [None, {'frame': {'duration': 500, 'redraw': False},
+                                        'fromcurrent': True,
+                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
+                        'label': 'Play',
+                        'method': 'animate'
+                    },
+                    {
+                        'args': [[None], {'frame': {'duration': 0, 'redraw': False}, 'mode': 'immediate',
+                                          'transition': {'duration': 0}}],
+                        'label': 'Pause',
+                        'method': 'animate'
+                    }
+                ],
+                'direction': 'left',
+                'pad': {'r': 10, 't': 87},
+                'showactive': False,
+                'type': 'buttons',
+                'x': 0.1,
+                'xanchor': 'right',
+                'y': 0,
+                'yanchor': 'top'
+            }
+        ]
+        self.__sliders_data = {
+            'active': 0,
+            'yanchor': 'top',
+            'xanchor': 'left',
+            'currentvalue': {
+                'font': {'size': 20},
+                'prefix': 'Zeitpunkt:',
+                'visible': True,
+                'xanchor': 'right'
+            },
+            'transition': {'duration': 300, 'easing': 'cubic-in-out'},
+            'pad': {'b': 10, 't': 50},
+            'len': 0.9,
+            'x': 0.1,
+            'y': 0,
+            'steps': []
+        }
+
+    def __build_data_frames(self):
+        self.__reset_data()
+
+        node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
+
+        for i, graph in enumerate(self.__temp_graph):
+            frame = {'data': [], 'name': str(i)}
+            # Why is layout recomputed here?
+            # Why the conversion to networkx graph?
+
+            edge_trace = plotly.graph_objs.Scatter(
+                x=[],
+                y=[],
+                line={'width': 0.5, 'color': '#545454'},
+                hoverinfo='none',
+                mode='lines'
+            )
+
+            used_node_ids = set()
+
+            for edge in graph.get_edges():
+                node1, node2 = edge.get_incident_nodes()
+                x1, y1 = self.__layout[i][node1]
+                x2, y2 = self.__layout[i][node2]
+                edge_trace['x'].extend([x1, x2, None])
+                edge_trace['y'].extend([y1, y2, None])
+                used_node_ids.add(node1)
+                used_node_ids.add(node2)
+            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
+
+            if isinstance(self.__color_map, dict):
+                colors = [self.__color_map[node_id] for node_id in used_node_ids]
+            else:
+                colors = self.__color_map
+
+            node_trace = plotly.graph_objs.Scatter(
+                x=[],
+                y=[],
+                text=[],
+                mode='markers',
+                hoverinfo='text',
+                marker={'size': 10,
+                        'line': {'width': 2},
+                        'color': colors
+                        }
+            )
+            for node in used_node_ids:
+                x, y = self.__layout[i][node]
+                node_trace['x'].append(x)
+                node_trace['y'].append(y)
+
+            frame['data'] = [edge_trace, node_trace]
+
+            self.__figure_data['frames'].append(frame)
+            slider_step = {
+                'args': [
+                    [i],
+                    {
+                        'frame': {'duration': 300, 'redraw': False},
+                        'mode': 'immediate',
+                        'transition': {'duration': 300}
+                     }
+                ],
+                'label': str(datetime.timedelta(seconds=i * self.__temp_graph.get_granularity())),
+                'method': 'animate'
+            }
+            self.__sliders_data['steps'].append(slider_step)
+        self.__figure_data['layout']['sliders'] = [self.__sliders_data]
+        self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
+
+        self.__recompute_frames = False
+
+    def get_figure(self) -> typ.Dict:
+        if self.__recompute_frames:
+            self.__build_data_frames()
+        return self.__figure_data
+
+    def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
+        self.__color_map = color_map
+        self.__recompute_frames = True
+
+    def update_filter(self, node_filter: vtna.filter.NodeFilter):
+        self.__node_filter = node_filter
+        self.__recompute_frames = True
+
+    def update_layout(self, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]]):
+        self.__layout = layout
+        self.__recompute_frames = True
