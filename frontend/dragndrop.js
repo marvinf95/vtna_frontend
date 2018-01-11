@@ -1,6 +1,7 @@
 var enableSorting = function (ul_list, id) {
-    var sortlist = sortable(ul_list)[0]
-    sortlist.addEventListener('sortupdate', function(e) {
+    sortable(ul_list, {
+        forcePlaceholderSize: true
+    })[0].addEventListener('sortupdate', function(e) {
         /*
         This event is triggered when the user stopped sorting and the DOM position has changed.
         e.detail.newEndList contains all elements in the list the dragged item was dragged to
