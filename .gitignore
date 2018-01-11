@@ -13,3 +13,4 @@ cover/
 .ipynb_checkpoints/
 frontend/upload/*
 frontend/__pycache__/
+*/temp-plot.html
