@@ -79,10 +79,15 @@ class UIDataUploadManager(object):
         return self.__granularity
 
     def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
-        for attribute_id, attribute_order in order_dict.items():
-            if not order_enabled[attribute_id]:
+        for attribute_id, enabled in order_enabled.items():
+            if not enabled:
                 continue
             attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+            if attribute_id in order_dict:
+                attribute_order = order_dict[attribute_id]
+            else:
+                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
+                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
             order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
             self.__metadata.order_categories(attribute_name, order)
 
