@@ -1116,10 +1116,10 @@ class TemporalGraphFigure(object):
         self.__figure_data = None  # type: typ.Dict
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
-        self.__recompute_frames = False  # type: bool
-        self.__build_data_frames()
+        self.__init_figure_data()
+        self.__init_data_frames()
 
-    def __init_data(self):
+    def __init_figure_data(self):
         self.__figure_data = {
             'data': [],
             'layout': {},
@@ -1186,16 +1186,9 @@ class TemporalGraphFigure(object):
             'steps': []
         }
 
-    def __build_data_frames(self):
-        self.__init_data()
-
-        node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
-
+    def __init_data_frames(self):
         for i, graph in enumerate(self.__temp_graph):
             frame = {'data': [], 'name': str(i)}
-            # Why is layout recomputed here?
-            # Why the conversion to networkx graph?
-
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
@@ -1203,24 +1196,6 @@ class TemporalGraphFigure(object):
                 hoverinfo='none',
                 mode='lines'
             )
-
-            used_node_ids = set()
-
-            for edge in graph.get_edges():
-                node1, node2 = edge.get_incident_nodes()
-                x1, y1 = self.__layout[i][node1]
-                x2, y2 = self.__layout[i][node2]
-                edge_trace['x'].extend([x1, x2, None])
-                edge_trace['y'].extend([y1, y2, None])
-                used_node_ids.add(node1)
-                used_node_ids.add(node2)
-            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
-
-            if isinstance(self.__color_map, dict):
-                colors = [self.__color_map[node_id] for node_id in used_node_ids]
-            else:
-                colors = self.__color_map
-
             node_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
@@ -1229,16 +1204,10 @@ class TemporalGraphFigure(object):
                 hoverinfo='text',
                 marker={'size': 10,
                         'line': {'width': 2},
-                        'color': colors
+                        'color': '#FFFFFF'
                         }
             )
-            for node in used_node_ids:
-                x, y = self.__layout[i][node]
-                node_trace['x'].append(x)
-                node_trace['y'].append(y)
-
             frame['data'] = [edge_trace, node_trace]
-
             self.__figure_data['frames'].append(frame)
             slider_step = {
                 'args': [
@@ -1254,33 +1223,64 @@ class TemporalGraphFigure(object):
             }
             self.__sliders_data['steps'].append(slider_step)
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
-        self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
 
-        self.__recompute_frames = False
+        self.__reposition_displayed_nodes()
+        self.__recolor_displayed_nodes()
+        self.__set_figure_data_as_initial_frame()
 
     def get_figure(self) -> typ.Dict:
-        if self.__recompute_frames:
-            self.__build_data_frames()
         return self.__figure_data
 
     def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__color_map = color_map
+        self.__recolor_displayed_nodes()
+        self.__set_figure_data_as_initial_frame()
+
+    def update_filter(self, node_filter: vtna.filter.NodeFilter):
+        self.__node_filter = node_filter
+        self.__reposition_displayed_nodes()
+        self.__set_figure_data_as_initial_frame()
+
+    def update_layout(self, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]]):
+        self.__layout = layout
+        self.__reposition_displayed_nodes()
+        self.__set_figure_data_as_initial_frame()
+
+    def __reposition_displayed_nodes(self):
+        node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
+        for i, graph in enumerate(self.__temp_graph):
+            used_node_ids = set()
+            # Reposition edges
+            self.__figure_data['frames'][i][0]['x'] = list()
+            self.__figure_data['frames'][i][0]['y'] = list()
+            for edge in graph.get_edges():
+                node1, node2 = edge.get_incident_nodes()
+                x1, y1 = self.__layout[i][node1]
+                x2, y2 = self.__layout[i][node2]
+                self.__figure_data['frames'][i][0]['x'].extend([x1, x2, None])
+                self.__figure_data['frames'][i][1]['x'].extend([y1, y2, None])
+                used_node_ids.add(node1)
+                used_node_ids.add(node2)
+            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
+            # Reposition nodes
+            self.__figure_data['frames'][i][1]['x'] = list()
+            self.__figure_data['frames'][i][1]['y'] = list()
+            for node in used_node_ids:
+                x, y = self.__layout[i][node]
+                self.__figure_data['frames'][i][1]['x'].append(x)
+                self.__figure_data['frames'][i][1]['y'].append(y)
+
+    def __recolor_displayed_nodes(self):
         node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
         for i in range(len(self.__figure_data['frames'])):
             used_node_ids = set(node for edge in self.__temp_graph[i].get_edges() for node in edge.get_incident_nodes())
             used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
-
             if isinstance(self.__color_map, dict):
                 colors = [self.__color_map[node_id] for node_id in used_node_ids]
             else:
                 colors = self.__color_map
-
             self.__figure_data['frames'][i][1]['marker']['color'] = colors
 
-    def update_filter(self, node_filter: vtna.filter.NodeFilter):
-        self.__node_filter = node_filter
-        self.__recompute_frames = True
-
-    def update_layout(self, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]]):
-        self.__layout = layout
-        self.__recompute_frames = True
+    def __set_figure_data_as_initial_frame(self):
+        # Call this method after completing changes in __figure_data
+        self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
