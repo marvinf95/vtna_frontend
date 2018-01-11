@@ -8,10 +8,17 @@ var enableSorting = function (ul_list, id) {
         */
         var orderList = e.detail.newEndList;
         var kernel = IPython.notebook.kernel;
-        kernel.execute("order_list[" + id + "].clear()");
+        // Assign values to python dictionary
+        var pythonCommand = "order_list['" + id + "'] = {";
         for (var i = 0; i < orderList.length; i++) {
-            kernel.execute("order_list[" + id + "].append(" + orderList[i].value + ")");
+            pythonCommand += "'" + i + "': " + orderList[i].value;
+            // Append comma if not last dictionary entry
+            if (i < orderList.length - 1) {
+                pythonCommand += ",";
+            }
         }
+        pythonCommand += "}"
+        kernel.execute(pythonCommand);
     });
 };
 
