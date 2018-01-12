@@ -398,6 +398,7 @@ class UIGraphDisplayManager(object):
         vtna.layout.flexible_spring_layout,
         vtna.layout.static_weighted_spring_layout,
         vtna.layout.flexible_weighted_spring_layout,
+        vtna.layout.chained_weighted_spring_layout,
         vtna.layout.random_walk_pca_layout
     ]
     # TODO: Replace with color picker at some point
@@ -555,7 +556,8 @@ class UIGraphDisplayManager(object):
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
             vtna.layout.static_weighted_spring_layout,
-            vtna.layout.flexible_weighted_spring_layout
+            vtna.layout.flexible_weighted_spring_layout,
+            vtna.layout.chained_weighted_spring_layout
         ]:
             return self.__layout_function(
                 temp_graph=self.__temp_graph,
