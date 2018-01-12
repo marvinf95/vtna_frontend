@@ -26,11 +26,13 @@ var enableSorting = function (ul_list, id) {
 };
 
 var disableSorting = function (ul_list, id) {
+    // Removes sortability listeners
     sortable(ul_list, 'destroy');
     kernel.execute("order_enabled[" + id + "] = False");
 };
 
 function toggleSortable(checkbox) {
+    // Choose the attribute list corresponding to the toggled checkbox
     ul_list = document.getElementById("attr_list" + checkbox.value);
     if(checkbox.checked) {
         // For changing list style to make sortability visible

@@ -1,3 +1,4 @@
+/* attrlist is the css class the attribute lists are always assigned to. */
 ul.attrlist {
 	list-style-type: none;
 }
@@ -15,12 +16,15 @@ ul.attrlist li {
     border-color: #ffffff
 }
 
-/*Prevents blue blackground on hover on D&D list.
-ID is used because class attributes are overwritten.*/
+/* Prevents blue blackground on hover on D&D list.
+ID is used because class attributes are overwritten.
+All attribute list body <tr> elements have id #nohover. */
 tr#nohover:hover {
     background: #FFFFFF;
 }
 
+/* sortlist is the css class the attribute list is assigned to when the user marks it as ordinal.
+This style changes the border color to blue to make it visible. */
 ul.sortlist li {
     border-color: #d4dcff;
 }
