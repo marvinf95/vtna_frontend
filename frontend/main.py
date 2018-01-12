@@ -208,7 +208,6 @@ class UIDataUploadManager(object):
         return handle_network_upload_metadata
 
     def display_graph_upload_error(self, msg: str):
-        self.__graph_data_text.value = msg
         with self.__graph_data_output:
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
@@ -235,7 +234,6 @@ class UIDataUploadManager(object):
             plt.show()
 
     def display_metadata_upload_error(self, msg):
-        self.__metadata_data_text.value = msg
         with self.__metadata_data_output:
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
