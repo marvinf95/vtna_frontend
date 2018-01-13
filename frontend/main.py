@@ -159,6 +159,9 @@ class UIDataUploadManager(object):
                 # Display UI for graph config
                 self.__open_graph_config()
             # TODO: Exception catching is not exhaustive yet
+            except FileNotFoundError:
+                error_msg = f'Invalid URL {url}'
+                self.display_graph_upload_error(error_msg)
             except urllib.error.HTTPError:
                 error_msg = f'Could not access URL {url}'
                 self.display_graph_upload_error(error_msg)
@@ -198,6 +201,9 @@ class UIDataUploadManager(object):
                 self.__display_metadata_upload_summary()
                 self.__open_column_config()
             # TODO: Exception catching is not exhaustive yet
+            except FileNotFoundError:
+                error_msg = f'Invalid URL {url}'
+                self.display_metadata_upload_error(error_msg)
             except urllib.error.HTTPError:
                 error_msg = f'Could not access URL {url}'
                 self.display_metadata_upload_error(error_msg)
