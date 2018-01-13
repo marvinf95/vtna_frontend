@@ -1244,12 +1244,15 @@ class TemporalGraphFigure(object):
 
             for edge in graph.get_edges():
                 node1, node2 = edge.get_incident_nodes()
-                x1, y1 = self.__layout[i][node1]
-                x2, y2 = self.__layout[i][node2]
-                self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
-                self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
-                used_node_ids.add(node1)
-                used_node_ids.add(node2)
+                # Only display edges of visible nodes
+                if node1 in node_ids and node2 in node_ids:
+                    x1, y1 = self.__layout[i][node1]
+                    x2, y2 = self.__layout[i][node2]
+                    self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
+                    self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
+                    # Only nodes with VISIBLE edges are displayed.
+                    used_node_ids.add(node1)
+                    used_node_ids.add(node2)
             used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
 
             if isinstance(self.__color_map, dict):
