@@ -1187,7 +1187,7 @@ class TemporalGraphFigure(object):
                 'visible': True,
                 'xanchor': 'right'
             },
-            'transition': {'duration': 300, 'easing': 'cubic-in-out'},
+            'transition': {'duration': 300, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 50},
             'len': 0.9,
             'x': 0.1,
@@ -1218,7 +1218,6 @@ class TemporalGraphFigure(object):
 
         for i, graph in enumerate(self.__temp_graph):
             frame = {'data': [], 'name': str(i)}
-
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
@@ -1226,6 +1225,20 @@ class TemporalGraphFigure(object):
                 hoverinfo='none',
                 mode='lines'
             )
+            node_trace = plotly.graph_objs.Scatter(
+                x=[],
+                y=[],
+                text=[],
+                mode='markers',
+                hoverinfo='text',
+                marker={
+                    'size': 10,
+                    'line': {'width': 2},
+                    'color': '#000000'
+                }
+            )
+            frame['data'] = [edge_trace, node_trace]
+            self.__figure_data['frames'].append(frame)
 
             used_node_ids = set()
 
@@ -1233,8 +1246,8 @@ class TemporalGraphFigure(object):
                 node1, node2 = edge.get_incident_nodes()
                 x1, y1 = self.__layout[i][node1]
                 x2, y2 = self.__layout[i][node2]
-                edge_trace['x'].extend([x1, x2, None])
-                edge_trace['y'].extend([y1, y2, None])
+                self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
+                self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
                 used_node_ids.add(node1)
                 used_node_ids.add(node2)
             used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
@@ -1243,26 +1256,13 @@ class TemporalGraphFigure(object):
                 colors = [self.__color_map[node_id] for node_id in used_node_ids]
             else:
                 colors = self.__color_map
+            self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
 
-            node_trace = plotly.graph_objs.Scatter(
-                x=[],
-                y=[],
-                text=[],
-                mode='markers',
-                hoverinfo='text',
-                marker={'size': 10,
-                        'line': {'width': 2},
-                        'color': colors
-                        }
-            )
             for node in used_node_ids:
                 x, y = self.__layout[i][node]
-                node_trace['x'].append(x)
-                node_trace['y'].append(y)
+                self.__figure_data['frames'][i]['data'][1]['x'].append(x)
+                self.__figure_data['frames'][i]['data'][1]['y'].append(y)
 
-            frame['data'] = [edge_trace, node_trace]
-
-            self.__figure_data['frames'].append(frame)
             slider_step = {
                 'args': [
                     [i],
@@ -1272,7 +1272,7 @@ class TemporalGraphFigure(object):
                         'transition': {'duration': 300}
                     }
                 ],
-                'label': str(datetime.timedelta(seconds=i * self.__temp_graph.get_granularity())),
+                'label': str(i),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
