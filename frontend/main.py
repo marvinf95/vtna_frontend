@@ -1123,16 +1123,17 @@ class TemporalGraphFigure(object):
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
                  color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__temp_graph = temp_graph
+        # Retrieve nodes once to ensure same order
+        self.__nodes = self.__temp_graph.get_nodes()
         self.__layout = layout
         self.__color_map = color_map
         self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
         self.__figure_data = None  # type: typ.Dict
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
-        self.__recompute_frames = False  # type: bool
         self.__build_data_frames()
 
-    def __reset_data(self):
+    def __init_figure_data(self):
         self.__figure_data = {
             'data': [],
             'layout': {},
@@ -1142,6 +1143,16 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['width'] = 800
         self.__figure_data['layout']['height'] = 800
         self.__figure_data['layout']['hovermode'] = 'closest'
+        self.__figure_data['layout']['yaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        self.__figure_data['layout']['xaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
@@ -1191,7 +1202,7 @@ class TemporalGraphFigure(object):
                 'visible': True,
                 'xanchor': 'right'
             },
-            'transition': {'duration': 300, 'easing': 'cubic-in-out'},
+            'transition': {'duration': 300, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 50},
             'len': 0.9,
             'x': 0.1,
@@ -1199,60 +1210,77 @@ class TemporalGraphFigure(object):
             'steps': []
         }
 
+    def get_figure(self) -> typ.Dict:
+        return self.__figure_data
+
+    def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
+        self.__color_map = color_map
+        self.__recolor_displayed_nodes()
+        self.__set_figure_data_as_initial_frame()
+
+    def update_filter(self, node_filter: vtna.filter.NodeFilter):
+        self.__node_filter = node_filter
+        self.__build_data_frames()
+
+    def update_layout(self, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]]):
+        self.__layout = layout
+        self.__build_data_frames()
+
     def __build_data_frames(self):
-        self.__reset_data()
+        self.__init_figure_data()
 
         node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
 
         for i, graph in enumerate(self.__temp_graph):
             frame = {'data': [], 'name': str(i)}
-            # Why is layout recomputed here?
-            # Why the conversion to networkx graph?
-
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
-                line={'width': 0.5, 'color': '#545454'},
+                line={'width': 0.6, 'color': '#000000'},
                 hoverinfo='none',
                 mode='lines'
             )
-
-            used_node_ids = set()
-
-            for edge in graph.get_edges():
-                node1, node2 = edge.get_incident_nodes()
-                x1, y1 = self.__layout[i][node1]
-                x2, y2 = self.__layout[i][node2]
-                edge_trace['x'].extend([x1, x2, None])
-                edge_trace['y'].extend([y1, y2, None])
-                used_node_ids.add(node1)
-                used_node_ids.add(node2)
-            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
-
-            if isinstance(self.__color_map, dict):
-                colors = [self.__color_map[node_id] for node_id in used_node_ids]
-            else:
-                colors = self.__color_map
-
             node_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
                 text=[],
                 mode='markers',
                 hoverinfo='text',
-                marker={'size': 10,
-                        'line': {'width': 2},
-                        'color': colors
-                        }
+                marker={
+                    'size': 10,
+                    'line': {'width': 2},
+                    'color': '#000000'
+                }
             )
+            frame['data'] = [edge_trace, node_trace]
+            self.__figure_data['frames'].append(frame)
+
+            used_node_ids = set()
+
+            for edge in graph.get_edges():
+                node1, node2 = edge.get_incident_nodes()
+                # Only display edges of visible nodes
+                if node1 in node_ids and node2 in node_ids:
+                    x1, y1 = self.__layout[i][node1]
+                    x2, y2 = self.__layout[i][node2]
+                    self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
+                    self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
+                    # Only nodes with VISIBLE edges are displayed.
+                    used_node_ids.add(node1)
+                    used_node_ids.add(node2)
+            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
+
+            if isinstance(self.__color_map, dict):
+                colors = [self.__color_map[node_id] for node_id in used_node_ids]
+            else:
+                colors = self.__color_map
+            self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
+
             for node in used_node_ids:
                 x, y = self.__layout[i][node]
-                node_trace['x'].append(x)
-                node_trace['y'].append(y)
+                self.__figure_data['frames'][i]['data'][1]['x'].append(x)
+                self.__figure_data['frames'][i]['data'][1]['y'].append(y)
 
-            frame['data'] = [edge_trace, node_trace]
-
-            self.__figure_data['frames'].append(frame)
             slider_step = {
                 'args': [
                     [i],
@@ -1260,30 +1288,26 @@ class TemporalGraphFigure(object):
                         'frame': {'duration': 300, 'redraw': False},
                         'mode': 'immediate',
                         'transition': {'duration': 300}
-                     }
+                    }
                 ],
-                'label': str(datetime.timedelta(seconds=i * self.__temp_graph.get_granularity())),
+                'label': str(i),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
 
-        self.__recompute_frames = False
+    def __recolor_displayed_nodes(self):
+        node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
+        for i in range(len(self.__figure_data['frames'])):
+            used_node_ids = set(node for edge in self.__temp_graph[i].get_edges() for node in edge.get_incident_nodes())
+            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
+            if isinstance(self.__color_map, dict):
+                colors = [self.__color_map[node_id] for node_id in used_node_ids]
+            else:
+                colors = self.__color_map
+            self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
 
-    def get_figure(self) -> typ.Dict:
-        if self.__recompute_frames:
-            self.__build_data_frames()
-        return self.__figure_data
-
-    def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
-        self.__color_map = color_map
-        self.__recompute_frames = True
-
-    def update_filter(self, node_filter: vtna.filter.NodeFilter):
-        self.__node_filter = node_filter
-        self.__recompute_frames = True
-
-    def update_layout(self, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]]):
-        self.__layout = layout
-        self.__recompute_frames = True
+    def __set_figure_data_as_initial_frame(self):
+        # Call this method after completing changes in __figure_data
+        self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
