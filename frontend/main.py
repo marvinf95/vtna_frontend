@@ -162,7 +162,7 @@ class UIDataUploadManager(object):
             except FileNotFoundError:
                 error_msg = f'Invalid URL {url}'
                 self.display_graph_upload_error(error_msg)
-            except urllib.error.HTTPError:
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {url}'
                 self.display_graph_upload_error(error_msg)
             except ValueError:
@@ -204,7 +204,7 @@ class UIDataUploadManager(object):
             except FileNotFoundError:
                 error_msg = f'Invalid URL {url}'
                 self.display_metadata_upload_error(error_msg)
-            except urllib.error.HTTPError:
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {url}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
