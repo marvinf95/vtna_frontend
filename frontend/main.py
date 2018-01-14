@@ -405,12 +405,10 @@ class UIGraphDisplayManager(object):
     DEFAULT_COLOR = '#000000'
 
     def __init__(self,
-                 time_slider: widgets.IntSlider,
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox
                  ):
-        self.__time_slider = time_slider
         self.__display_output = display_output
         self.__display_size = display_size
 
