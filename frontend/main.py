@@ -139,7 +139,6 @@ class UIDataUploadManager(object):
                 self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 # Display UI for graph config
                 self.__open_graph_config()
-            # TODO: Exception catching is not exhaustive yet
             except FileNotFoundError:
                 error_msg = f'File {w.filename} does not exist'
                 self.display_graph_upload_error(error_msg)
@@ -158,8 +157,10 @@ class UIDataUploadManager(object):
                 self.__edge_list = vtna.data_import.read_edge_table(url)
                 # Display UI for graph config
                 self.__open_graph_config()
-            # TODO: Exception catching is not exhaustive yet
-            except urllib.error.HTTPError:
+            except FileNotFoundError:
+                error_msg = f'Invalid URL {url}'
+                self.display_graph_upload_error(error_msg)
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {url}'
                 self.display_graph_upload_error(error_msg)
             except ValueError:
@@ -180,7 +181,6 @@ class UIDataUploadManager(object):
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
-            # TODO: Exception catching is not exhaustive yet
             except FileNotFoundError:
                 error_msg = f'File {w.filename} does not exist'
                 self.display_metadata_upload_error(error_msg)
@@ -197,8 +197,10 @@ class UIDataUploadManager(object):
                 self.__metadata = vtna.data_import.MetadataTable(url)
                 self.__display_metadata_upload_summary()
                 self.__open_column_config()
-            # TODO: Exception catching is not exhaustive yet
-            except urllib.error.HTTPError:
+            except FileNotFoundError:
+                error_msg = f'Invalid URL {url}'
+                self.display_metadata_upload_error(error_msg)
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {url}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
