@@ -1316,3 +1316,27 @@ class TemporalGraphFigure(object):
     def __set_figure_data_as_initial_frame(self):
         # Call this method after completing changes in __figure_data
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
+
+
+class LoadingIndicator(object):
+    def __init__(self, layout: widgets.Layout):
+        self.__layout = widgets.Layout(
+            height=layout.height,
+            width=layout.width,
+            justify_content='center',
+            align_items='center'
+        )
+        self.__output = widgets.Output(layout=self.__layout)
+        with self.__output:
+            ipydisplay.display(ipydisplay.SVG(filename="images/loading.svg"))
+
+    def get_output(self):
+        return self.__output
+
+    def resume(self):
+        with self.__output:
+            self.__layout.display = 'block'
+
+    def stop(self):
+        with self.__output:
+            self.__layout.display = 'none'
