@@ -33,11 +33,13 @@ class UIDataUploadManager(object):
                  network_graph_upload_button: widgets.Button,
                  graph_data_text: widgets.Text,
                  graph_data_output: widgets.Output,
+                 graph_data_loading: 'LoadingIndicator',
                  # Metadata upload widgets
                  local_metadata_file_upload: fileupload.FileUploadWidget,
                  network_metadata_upload_button: widgets.Button,
                  metadata_text: widgets.Text,
                  metadata_output: widgets.Output,
+                 metadata_loading: 'LoadingIndicator',
                  # Metadata configuration widgets
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
@@ -51,11 +53,13 @@ class UIDataUploadManager(object):
         self.__network_graph_upload_button = network_graph_upload_button
         self.__graph_data_text = graph_data_text
         self.__graph_data_output = graph_data_output
+        self.__graph_data_loading = graph_data_loading
 
         self.__local_metadata_file_upload = local_metadata_file_upload
         self.__network_metadata_upload_button = network_metadata_upload_button
         self.__metadata_data_text = metadata_text
         self.__metadata_data_output = metadata_output
+        self.__metadata_loading = metadata_loading
 
         self.__metadata_configuration_vbox = metadata_configuration_vbox
         self.__column_configuration_layout = column_configuration_layout
@@ -127,6 +131,7 @@ class UIDataUploadManager(object):
         def handle_local_upload_graph_data(change):
             # TODO: What does the w stand for?
             w = change['owner']
+            self.__graph_data_loading.start()
             try:
                 # Upload and store file to notebook directory
                 # TODO: put it into a tmp folder
@@ -145,11 +150,14 @@ class UIDataUploadManager(object):
             except ValueError:
                 error_msg = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
                 self.display_graph_upload_error(error_msg)
+            finally:
+                self.__graph_data_loading.stop()
 
         return handle_local_upload_graph_data
 
     def build_handle_network_upload_graph_data(self) -> typ.Callable:
         def handle_network_upload_graph_data(change):
+            self.__graph_data_loading.start()
             try:
                 url = self.__graph_data_text.value
                 # Save file name of graph data
@@ -166,18 +174,22 @@ class UIDataUploadManager(object):
             except ValueError:
                 error_msg = f'Columns 1-3 in {url} cannot be parsed to integers'
                 self.display_graph_upload_error(error_msg)
+            finally:
+                self.__graph_data_loading.stop()
 
         return handle_network_upload_graph_data
 
     def build_handle_local_upload_metadata(self) -> typ.Callable:
         def handle_local_upload_metadata(change):
             w = change['owner']
+            self.__metadata_loading.start()
             try:
                 with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__metadata_data_text.value = w.filename
                 # Load metadata
                 self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
@@ -187,14 +199,18 @@ class UIDataUploadManager(object):
             except ValueError:
                 error_msg = f'Column 1 in {w.filename} cannot be parsed to integer'
                 self.display_metadata_upload_error(error_msg)
+            finally:
+                self.__metadata_loading.stop()
 
         return handle_local_upload_metadata
 
     def build_handle_network_upload_metadata(self) -> typ.Callable:
         def handle_network_upload_metadata(change):
+            self.__metadata_loading.start()
             try:
                 url = self.__metadata_data_text.value
                 self.__metadata = vtna.data_import.MetadataTable(url)
+                self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 self.__open_column_config()
             except FileNotFoundError:
@@ -206,6 +222,8 @@ class UIDataUploadManager(object):
             except ValueError:
                 error_msg = f'Column 1 in {url} cannot be parsed to integer'
                 self.display_metadata_upload_error(error_msg)
+            finally:
+                self.__metadata_loading.stop()
 
         return handle_network_upload_metadata
 
@@ -1317,24 +1335,34 @@ class TemporalGraphFigure(object):
 
 
 class LoadingIndicator(object):
-    def __init__(self, layout: widgets.Layout):
-        self.__layout = widgets.Layout(
-            height=layout.height,
-            width=layout.width,
-            justify_content='center',
-            align_items='center'
+    __loading_images = {
+        'big': "images/loading.svg",
+        'small': "images/loading_small.svg"
+    }
+
+    def __init__(self, size: str, outer_layout: widgets.Layout):
+        if size not in self.__loading_images:
+            raise ValueError(f"'{size}' is not a valid size. Must be one of {self.__loading_images.keys()}")
+        layout = widgets.Layout(
+            width=outer_layout.width,
+            height=outer_layout.height,
+            align_items='center',
+            justify_content='center'
         )
-        self.__output = widgets.Output(layout=self.__layout)
-        with self.__output:
-            ipydisplay.display(ipydisplay.SVG(filename="images/loading.svg"))
+        output = widgets.Output()
+        with output:
+            ipydisplay.display(ipydisplay.SVG(filename=self.__loading_images[size]))
 
-    def get_output(self):
-        return self.__output
+        self.__box = widgets.VBox(children=[output], layout=layout)
+        self.stop()
 
-    def resume(self):
-        with self.__output:
-            self.__layout.display = 'block'
+    def get_box(self):
+        return self.__box
+
+    def start(self):
+        pass
+        self.__box.layout.display = 'flex'
 
     def stop(self):
-        with self.__output:
-            self.__layout.display = 'none'
+        pass
+        self.__box.layout.display = 'none'
