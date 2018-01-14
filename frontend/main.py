@@ -406,13 +406,14 @@ class UIGraphDisplayManager(object):
 
     def __init__(self,
                  time_slider: widgets.IntSlider,
-                 display_vbox: widgets.VBox,
+                 display_output: widgets.Output,
+                 display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox
                  ):
         self.__time_slider = time_slider
-        self.__display_vbox = display_vbox
-        self.__display_output = widgets.Output()
-        self.__display_vbox.children = [self.__display_output]
+        self.__display_output = display_output
+        self.__display_size = display_size
+
         self.__layout_vbox = layout_vbox
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
@@ -437,7 +438,7 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
         self.__display_layout_description()
 
-        parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
+        parameter_widget_layout = widgets.Layout(width='50rem')
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
@@ -501,7 +502,7 @@ class UIGraphDisplayManager(object):
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
-        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, UIGraphDisplayManager.DEFAULT_COLOR)
+        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, self.__display_size, UIGraphDisplayManager.DEFAULT_COLOR)
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
 
     def display_graph(self):
@@ -1123,11 +1124,12 @@ def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.Metadata
 
 class TemporalGraphFigure(object):
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
-                 color_map: typ.Union[str, typ.Dict[int, str]]):
+                 display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
         self.__layout = layout
+        self.__display_size = display_size
         self.__color_map = color_map
         self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
         self.__figure_data = None  # type: typ.Dict
@@ -1142,8 +1144,9 @@ class TemporalGraphFigure(object):
             'frames': []
         }
         self.__figure_data['layout']['autosize'] = False
-        self.__figure_data['layout']['width'] = 800
-        self.__figure_data['layout']['height'] = 800
+        # Substract approximate height of control widgets to fit in the box
+        self.__figure_data['layout']['width'] = self.__display_size[0]-20
+        self.__figure_data['layout']['height'] = self.__display_size[1]-20
         self.__figure_data['layout']['hovermode'] = 'closest'
         self.__figure_data['layout']['yaxis'] = {
             'range': [-1.1, 1.1],
