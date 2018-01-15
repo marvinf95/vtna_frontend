@@ -137,6 +137,10 @@ class UIDataUploadManager(object):
     def build_handle_upload_graph_data(self, upload_origin: UploadOrigin) -> \
             typ.Callable:
         def handle_local_upload_graph_data(change):
+            # Hide widgets and output in case this is a reupload
+            self.__graph_data__configuration_vbox.children = []
+            with self.__graph_data_output:
+                ipydisplay.clear_output()
             # TODO: What does the w stand for?
             w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
                 else None
@@ -157,6 +161,7 @@ class UIDataUploadManager(object):
                     self.__edge_list = vtna.data_import.read_edge_table(file)
                 # Display UI for graph config
                 self.__open_graph_config()
+                self.__display_graph_upload_summary()
             except FileNotFoundError:
                 error_msg = f'File {file} does not exist'
                 self.display_graph_upload_error(error_msg)
@@ -173,6 +178,10 @@ class UIDataUploadManager(object):
 
     def build_handle_upload_metadata(self, upload_origin: UploadOrigin) -> typ.Callable:
         def handle_local_upload_metadata(change):
+            # Hide widgets and output in case this is a reupload
+            self.__metadata_configuration_vbox.children = []
+            with self.__metadata_data_output:
+                ipydisplay.clear_output()
             w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
                 else None
             self.__metadata_loading.start()
@@ -338,7 +347,6 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox.children = \
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
-        self.__display_graph_upload_summary()
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
