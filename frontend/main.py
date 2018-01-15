@@ -169,7 +169,7 @@ class UIDataUploadManager(object):
                 error_msg = f'Could not access URL {file}'
                 self.display_graph_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Columns 1-3 in {file} cannot be parsed to integers'
+                error_msg = f'Invalid format: Columns 1-3 in {file} must be integers'
                 self.display_graph_upload_error(error_msg)
             finally:
                 self.__graph_data_loading.stop()
@@ -207,7 +207,7 @@ class UIDataUploadManager(object):
                 error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Column 1 in {file} cannot be parsed to integer'
+                error_msg = f'Invalid format: Column 1 in {file} must be integer'
                 self.display_metadata_upload_error(error_msg)
             finally:
                 self.__metadata_loading.stop()
