@@ -1,5 +1,7 @@
 import datetime
+import os
 import typing as typ
+import enum
 import urllib
 import urllib.error
 
@@ -24,6 +26,10 @@ class UIDataUploadManager(object):
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
     UPLOAD_DIR = 'upload/'  # type: str
 
+    class UploadOrigin(enum.Enum):
+        LOCAL = enum.auto()
+        NETWORK = enum.auto()
+
     def __init__(self,
                  # Run button switches to Display graph step, should be disabled by default and enabled on set
                  # granularity.
@@ -33,11 +39,13 @@ class UIDataUploadManager(object):
                  network_graph_upload_button: widgets.Button,
                  graph_data_text: widgets.Text,
                  graph_data_output: widgets.Output,
+                 graph_data_loading: 'LoadingIndicator',
                  # Metadata upload widgets
                  local_metadata_file_upload: fileupload.FileUploadWidget,
                  network_metadata_upload_button: widgets.Button,
                  metadata_text: widgets.Text,
                  metadata_output: widgets.Output,
+                 metadata_loading: 'LoadingIndicator',
                  # Metadata configuration widgets
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
@@ -51,23 +59,26 @@ class UIDataUploadManager(object):
         self.__network_graph_upload_button = network_graph_upload_button
         self.__graph_data_text = graph_data_text
         self.__graph_data_output = graph_data_output
+        self.__graph_data_loading = graph_data_loading
 
         self.__local_metadata_file_upload = local_metadata_file_upload
         self.__network_metadata_upload_button = network_metadata_upload_button
         self.__metadata_data_text = metadata_text
         self.__metadata_data_output = metadata_output
+        self.__metadata_loading = metadata_loading
 
         self.__metadata_configuration_vbox = metadata_configuration_vbox
         self.__column_configuration_layout = column_configuration_layout
 
         self.__graph_data__configuration_vbox = graph_data_configuration_vbox
 
-        self.__graph_data_file_name = None
-
         self.__edge_list = None  # type: typ.List[vtna.data_import.TemporalEdge]
         self.__metadata = None  # type: vtna.data_import.MetadataTable
 
         self.__granularity = None
+
+        if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
+            os.mkdir(UIDataUploadManager.UPLOAD_DIR)
 
     def get_edge_list(self) -> typ.List[vtna.data_import.TemporalEdge]:
         return self.__edge_list
@@ -123,91 +134,85 @@ class UIDataUploadManager(object):
 
         return on_toogle_upload_type
 
-    def build_handle_local_upload_graph_data(self) -> typ.Callable:
+    def build_handle_upload_graph_data(self, upload_origin: UploadOrigin) -> \
+            typ.Callable:
         def handle_local_upload_graph_data(change):
+            # Hide widgets and output in case this is a reupload
+            self.__graph_data__configuration_vbox.children = []
+            with self.__graph_data_output:
+                ipydisplay.clear_output()
             # TODO: What does the w stand for?
-            w = change['owner']
+            w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
+                else None
+            self.__graph_data_loading.start()
             try:
-                # Upload and store file to notebook directory
-                # TODO: put it into a tmp folder
-                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
-                    f.write(w.data)
-                    self.__graph_data_text.value = w.filename
-                # Save file name of graph data
-                self.__graph_data_file_name = w.filename
-                # Import graph as edge list via vtna
-                self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                if upload_origin is self.UploadOrigin.LOCAL:
+                    file = w.filename
+                    # Upload and store file to notebook directory
+                    # TODO: put it into a tmp folder
+                    with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
+                        f.write(w.data)
+                        self.__graph_data_text.value = w.filename
+                        # Import graph as edge list via vtna
+                        self.__edge_list = vtna.data_import.read_edge_table(
+                            UIDataUploadManager.UPLOAD_DIR + w.filename)
+                elif upload_origin is self.UploadOrigin.NETWORK:
+                    file = self.__graph_data_text.value
+                    self.__edge_list = vtna.data_import.read_edge_table(file)
                 # Display UI for graph config
                 self.__open_graph_config()
+                self.__display_graph_upload_summary()
             except FileNotFoundError:
-                error_msg = f'File {w.filename} does not exist'
+                error_msg = f'File {file} does not exist'
+                self.display_graph_upload_error(error_msg)
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                error_msg = f'Could not access URL {file}'
                 self.display_graph_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
+                error_msg = f'Invalid format: Columns 1-3 in {file} must be integers'
                 self.display_graph_upload_error(error_msg)
+            finally:
+                self.__graph_data_loading.stop()
 
         return handle_local_upload_graph_data
 
-    def build_handle_network_upload_graph_data(self) -> typ.Callable:
-        def handle_network_upload_graph_data(change):
-            try:
-                url = self.__graph_data_text.value
-                # Save file name of graph data
-                self.__graph_data_file_name = url
-                self.__edge_list = vtna.data_import.read_edge_table(url)
-                # Display UI for graph config
-                self.__open_graph_config()
-            except FileNotFoundError:
-                error_msg = f'Invalid URL {url}'
-                self.display_graph_upload_error(error_msg)
-            except (urllib.error.HTTPError, urllib.error.URLError):
-                error_msg = f'Could not access URL {url}'
-                self.display_graph_upload_error(error_msg)
-            except ValueError:
-                error_msg = f'Columns 1-3 in {url} cannot be parsed to integers'
-                self.display_graph_upload_error(error_msg)
-
-        return handle_network_upload_graph_data
-
-    def build_handle_local_upload_metadata(self) -> typ.Callable:
+    def build_handle_upload_metadata(self, upload_origin: UploadOrigin) -> typ.Callable:
         def handle_local_upload_metadata(change):
-            w = change['owner']
+            # Hide widgets and output in case this is a reupload
+            self.__metadata_configuration_vbox.children = []
+            with self.__metadata_data_output:
+                ipydisplay.clear_output()
+            w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
+                else None
+            self.__metadata_loading.start()
             try:
-                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
-                    f.write(w.data)
-                    self.__metadata_data_text.value = w.filename
-                # Load metadata
-                self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                if upload_origin is self.UploadOrigin.LOCAL:
+                    file = w.filename
+                    with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
+                        f.write(w.data)
+                        self.__metadata_data_text.value = w.filename
+                    # Load metadata
+                    self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                elif upload_origin is self.UploadOrigin.NETWORK:
+                    file = self.__metadata_data_text.value
+                    self.__metadata = vtna.data_import.MetadataTable(file)
+                self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
             except FileNotFoundError:
-                error_msg = f'File {w.filename} does not exist'
-                self.display_metadata_upload_error(error_msg)
-            except ValueError:
-                error_msg = f'Column 1 in {w.filename} cannot be parsed to integer'
-                self.display_metadata_upload_error(error_msg)
-
-        return handle_local_upload_metadata
-
-    def build_handle_network_upload_metadata(self) -> typ.Callable:
-        def handle_network_upload_metadata(change):
-            try:
-                url = self.__metadata_data_text.value
-                self.__metadata = vtna.data_import.MetadataTable(url)
-                self.__display_metadata_upload_summary()
-                self.__open_column_config()
-            except FileNotFoundError:
-                error_msg = f'Invalid URL {url}'
+                error_msg = f'File {file} does not exist'
                 self.display_metadata_upload_error(error_msg)
             except (urllib.error.HTTPError, urllib.error.URLError):
-                error_msg = f'Could not access URL {url}'
+                error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Column 1 in {url} cannot be parsed to integer'
+                error_msg = f'Invalid format: Column 1 in {file} must be integer'
                 self.display_metadata_upload_error(error_msg)
+            finally:
+                self.__metadata_loading.stop()
 
-        return handle_network_upload_metadata
+        return handle_local_upload_metadata
 
     def display_graph_upload_error(self, msg: str):
         with self.__graph_data_output:
@@ -255,11 +260,13 @@ class UIDataUploadManager(object):
         Currently only supports setting of names.
         Changes are made to Text widgets in w_attribute_settings.children
         """
-        # Load some default settings
+        # Hide widgets in case this is a reupload
         self.__metadata_configuration_vbox.children = []
+
         current_names = sorted(self.__metadata.get_attribute_names())
         column_text_fields = list()  # type: typ.List[widgets.Text]
 
+        # Load some default settings
         for name in current_names:
             w_col_name = widgets.Text(
                 value='{}'.format(name),
@@ -342,7 +349,6 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox.children = \
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
-        self.__display_graph_upload_summary()
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
@@ -405,15 +411,16 @@ class UIGraphDisplayManager(object):
     DEFAULT_COLOR = '#000000'
 
     def __init__(self,
-                 time_slider: widgets.IntSlider,
-                 display_vbox: widgets.VBox,
-                 layout_vbox: widgets.VBox
+                 display_output: widgets.Output,
+                 display_size: typ.Tuple[int, int],
+                 layout_vbox: widgets.VBox,
+                 loading_indicator: 'LoadingIndicator'
                  ):
-        self.__time_slider = time_slider
-        self.__display_vbox = display_vbox
-        self.__display_output = widgets.Output()
-        self.__display_vbox.children = [self.__display_output]
+        self.__display_output = display_output
+        self.__display_size = display_size
+
         self.__layout_vbox = layout_vbox
+        self.__loading_indicator = loading_indicator
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
@@ -437,7 +444,7 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
         self.__display_layout_description()
 
-        parameter_widget_layout = widgets.Layout(padding='0 0 0 0lem', width='50rem')
+        parameter_widget_layout = widgets.Layout(width='50rem')
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
@@ -501,7 +508,7 @@ class UIGraphDisplayManager(object):
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
-        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, UIGraphDisplayManager.DEFAULT_COLOR)
+        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, self.__display_size, UIGraphDisplayManager.DEFAULT_COLOR)
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
 
     def display_graph(self):
@@ -514,11 +521,14 @@ class UIGraphDisplayManager(object):
 
     def notify(self, observable) -> None:
         if isinstance(observable, UIAttributeQueriesManager):
+            # => Call from QueryManager class
+            self.__start_graph_loading()
             node_filter = observable.get_node_filter()
             self.__figure.update_filter(node_filter)
             node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
             self.__figure.update_colors(node_colors)
             self.display_graph()
+            self.__stop_graph_loading()
 
     def __display_layout_description(self):
         description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
@@ -533,6 +543,7 @@ class UIGraphDisplayManager(object):
             self.__apply_layout_button.disabled = True
             old_button_name = self.__apply_layout_button.description
             self.__apply_layout_button.description = 'Loading...'
+            self.__start_graph_loading()
             # Compute layout...
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
@@ -546,6 +557,7 @@ class UIGraphDisplayManager(object):
             self.__set_current_layout_widgets()
             # Update graph display
             self.display_graph()
+            self.__stop_graph_loading()
 
         return apply_layout
 
@@ -598,6 +610,14 @@ class UIGraphDisplayManager(object):
             ])
         widget_list.append(self.__layout_description_output)
         self.__layout_vbox.children = widget_list
+
+    def __start_graph_loading(self):
+        self.__loading_indicator.start()
+        with self.__display_output:
+            ipydisplay.clear_output()
+
+    def __stop_graph_loading(self):
+        self.__loading_indicator.stop()
 
 
 class UIAttributeQueriesManager(object):
@@ -1123,11 +1143,12 @@ def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.Metadata
 
 class TemporalGraphFigure(object):
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
-                 color_map: typ.Union[str, typ.Dict[int, str]]):
+                 display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
         self.__layout = layout
+        self.__display_size = display_size
         self.__color_map = color_map
         self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
         self.__figure_data = None  # type: typ.Dict
@@ -1142,8 +1163,14 @@ class TemporalGraphFigure(object):
             'frames': []
         }
         self.__figure_data['layout']['autosize'] = False
-        self.__figure_data['layout']['width'] = 800
-        self.__figure_data['layout']['height'] = 800
+        # Substract approximate height of control widgets to fit in the box
+        self.__figure_data['layout']['width'] = self.__display_size[0]-20
+        self.__figure_data['layout']['height'] = self.__display_size[1]-20
+        # Make plot more compact
+        self.__figure_data['layout']['margin'] = plotly.graph_objs.Margin(
+            t=20,
+            pad=0
+        )
         self.__figure_data['layout']['hovermode'] = 'closest'
         self.__figure_data['layout']['yaxis'] = {
             'range': [-1.1, 1.1],
@@ -1185,7 +1212,7 @@ class TemporalGraphFigure(object):
                     }
                 ],
                 'direction': 'left',
-                'pad': {'r': 10, 't': 87},
+                'pad': {'r': 10, 't': 37},
                 'showactive': False,
                 'type': 'buttons',
                 'x': 0.1,
@@ -1205,7 +1232,7 @@ class TemporalGraphFigure(object):
                 'xanchor': 'right'
             },
             'transition': {'duration': 300, 'easing': 'immediate'},
-            'pad': {'b': 10, 't': 50},
+            'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
             'y': 0,
@@ -1313,3 +1340,50 @@ class TemporalGraphFigure(object):
     def __set_figure_data_as_initial_frame(self):
         # Call this method after completing changes in __figure_data
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
+
+
+class LoadingIndicator(object):
+    loading_images = {
+        'big': "images/loading.svg",
+        'small': "images/loading_small.svg"
+    }
+
+    def __init__(self, size: str, outer_layout: widgets.Layout):
+        """
+        An SVG loading indicator that can be stopped/hidden and resumed.
+        Provides a widget.Box that uses size of specified layout to act as placeholder,
+        and contains the actual loading indicator.
+        Initially the box is hidden and must be made visible with start().
+
+        Args:
+            size: String that indicates size of loading icon graphic. Can be 'small' or 'big'.
+            outer_layout: A layout which size parameters will be used for the box layout as placeholder.
+        """
+        if size not in LoadingIndicator.loading_images:
+            raise ValueError(f"'{size}' is not a valid size. Must be one of {LoadingIndicator.loading_images.keys()}")
+        self.__size = size
+        self.__output = widgets.Output()
+        # Copy size parameters and center the content/loading indicator itself
+        layout = widgets.Layout(
+            width=outer_layout.width,
+            height=outer_layout.height,
+            align_items='center',
+            justify_content='center'
+        )
+        self.__box = widgets.VBox(children=[self.__output], layout=layout)
+        self.stop()
+
+    def get_box(self):
+        return self.__box
+
+    def start(self):
+        """Shows the loading indicator."""
+        with self.__output:
+            ipydisplay.display(ipydisplay.SVG(filename=LoadingIndicator.loading_images[self.__size]))
+        self.__box.layout.display = 'flex'
+
+    def stop(self):
+        """Hides the loading indicator."""
+        with self.__output:
+            ipydisplay.clear_output()
+        self.__box.layout.display = 'none'
