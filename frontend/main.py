@@ -1,5 +1,6 @@
 import datetime
 import typing as typ
+import enum
 import urllib
 import urllib.error
 
@@ -23,6 +24,10 @@ class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
     UPLOAD_DIR = 'upload/'  # type: str
+
+    class UploadOrigin(enum.Enum):
+        LOCAL = enum.auto()
+        NETWORK = enum.auto()
 
     def __init__(self,
                  # Run button switches to Display graph step, should be disabled by default and enabled on set
@@ -125,101 +130,76 @@ class UIDataUploadManager(object):
 
         return on_toogle_upload_type
 
-    def build_handle_local_upload_graph_data(self) -> typ.Callable:
+    def build_handle_upload_graph_data(self, upload_origin: UploadOrigin) -> \
+            typ.Callable:
         def handle_local_upload_graph_data(change):
             # TODO: What does the w stand for?
-            w = change['owner']
+            w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
+                else None
             self.__graph_data_loading.start()
             try:
-                # Upload and store file to notebook directory
-                # TODO: put it into a tmp folder
-                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
-                    f.write(w.data)
-                    self.__graph_data_text.value = w.filename
-                # Import graph as edge list via vtna
-                self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                if upload_origin is self.UploadOrigin.LOCAL:
+                    file = w.filename
+                    # Upload and store file to notebook directory
+                    # TODO: put it into a tmp folder
+                    with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
+                        f.write(w.data)
+                        self.__graph_data_text.value = w.filename
+                        # Import graph as edge list via vtna
+                        self.__edge_list = vtna.data_import.read_edge_table(
+                            UIDataUploadManager.UPLOAD_DIR + w.filename)
+                elif upload_origin is self.UploadOrigin.NETWORK:
+                    file = self.__graph_data_text.value
+                    self.__edge_list = vtna.data_import.read_edge_table(file)
                 # Display UI for graph config
                 self.__open_graph_config()
             except FileNotFoundError:
-                error_msg = f'File {w.filename} does not exist'
+                error_msg = f'File {file} does not exist'
+                self.display_graph_upload_error(error_msg)
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                error_msg = f'Could not access URL {file}'
                 self.display_graph_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Columns 1-3 in {w.filename} cannot be parsed to integers'
+                error_msg = f'Columns 1-3 in {file} cannot be parsed to integers'
                 self.display_graph_upload_error(error_msg)
             finally:
                 self.__graph_data_loading.stop()
 
         return handle_local_upload_graph_data
 
-    def build_handle_network_upload_graph_data(self) -> typ.Callable:
-        def handle_network_upload_graph_data(change):
-            self.__graph_data_loading.start()
-            try:
-                url = self.__graph_data_text.value
-                self.__edge_list = vtna.data_import.read_edge_table(url)
-                # Display UI for graph config
-                self.__open_graph_config()
-            except FileNotFoundError:
-                error_msg = f'Invalid URL {url}'
-                self.display_graph_upload_error(error_msg)
-            except (urllib.error.HTTPError, urllib.error.URLError):
-                error_msg = f'Could not access URL {url}'
-                self.display_graph_upload_error(error_msg)
-            except ValueError:
-                error_msg = f'Columns 1-3 in {url} cannot be parsed to integers'
-                self.display_graph_upload_error(error_msg)
-            finally:
-                self.__graph_data_loading.stop()
-
-        return handle_network_upload_graph_data
-
-    def build_handle_local_upload_metadata(self) -> typ.Callable:
+    def build_handle_upload_metadata(self, upload_origin: UploadOrigin) -> typ.Callable:
         def handle_local_upload_metadata(change):
-            w = change['owner']
+            w = change['owner'] if upload_origin is self.UploadOrigin.LOCAL \
+                else None
             self.__metadata_loading.start()
             try:
-                with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
-                    f.write(w.data)
-                    self.__metadata_data_text.value = w.filename
-                # Load metadata
-                self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                if upload_origin is self.UploadOrigin.LOCAL:
+                    file = w.filename
+                    with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
+                        f.write(w.data)
+                        self.__metadata_data_text.value = w.filename
+                    # Load metadata
+                    self.__metadata = vtna.data_import.MetadataTable(UIDataUploadManager.UPLOAD_DIR + w.filename)
+                elif upload_origin is self.UploadOrigin.NETWORK:
+                    file = self.__metadata_data_text.value
+                    self.__metadata = vtna.data_import.MetadataTable(file)
                 self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
                 self.__open_column_config()
             except FileNotFoundError:
-                error_msg = f'File {w.filename} does not exist'
-                self.display_metadata_upload_error(error_msg)
-            except ValueError:
-                error_msg = f'Column 1 in {w.filename} cannot be parsed to integer'
-                self.display_metadata_upload_error(error_msg)
-            finally:
-                self.__metadata_loading.stop()
-
-        return handle_local_upload_metadata
-
-    def build_handle_network_upload_metadata(self) -> typ.Callable:
-        def handle_network_upload_metadata(change):
-            self.__metadata_loading.start()
-            try:
-                url = self.__metadata_data_text.value
-                self.__metadata = vtna.data_import.MetadataTable(url)
-                self.__metadata_loading.stop()
-                self.__display_metadata_upload_summary()
-                self.__open_column_config()
-            except FileNotFoundError:
-                error_msg = f'Invalid URL {url}'
+                error_msg = f'File {file} does not exist'
                 self.display_metadata_upload_error(error_msg)
             except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {url}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
-                error_msg = f'Column 1 in {url} cannot be parsed to integer'
+                error_msg = f'Column 1 in {file} cannot be parsed to integer'
                 self.display_metadata_upload_error(error_msg)
             finally:
                 self.__metadata_loading.stop()
 
-        return handle_network_upload_metadata
+        return handle_local_upload_metadata
 
     def display_graph_upload_error(self, msg: str):
         with self.__graph_data_output:
