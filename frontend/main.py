@@ -66,8 +66,6 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox = graph_data_configuration_vbox
 
-        self.__graph_data_file_name = None
-
         self.__edge_list = None  # type: typ.List[vtna.data_import.TemporalEdge]
         self.__metadata = None  # type: vtna.data_import.MetadataTable
 
@@ -138,8 +136,6 @@ class UIDataUploadManager(object):
                 with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                     f.write(w.data)
                     self.__graph_data_text.value = w.filename
-                # Save file name of graph data
-                self.__graph_data_file_name = w.filename
                 # Import graph as edge list via vtna
                 self.__edge_list = vtna.data_import.read_edge_table(UIDataUploadManager.UPLOAD_DIR + w.filename)
                 # Display UI for graph config
@@ -160,8 +156,6 @@ class UIDataUploadManager(object):
             self.__graph_data_loading.start()
             try:
                 url = self.__graph_data_text.value
-                # Save file name of graph data
-                self.__graph_data_file_name = url
                 self.__edge_list = vtna.data_import.read_edge_table(url)
                 # Display UI for graph config
                 self.__open_graph_config()
