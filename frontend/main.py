@@ -260,11 +260,13 @@ class UIDataUploadManager(object):
         Currently only supports setting of names.
         Changes are made to Text widgets in w_attribute_settings.children
         """
-        # Load some default settings
+        # Hide widgets in case this is a reupload
         self.__metadata_configuration_vbox.children = []
+
         current_names = sorted(self.__metadata.get_attribute_names())
         column_text_fields = list()  # type: typ.List[widgets.Text]
 
+        # Load some default settings
         for name in current_names:
             w_col_name = widgets.Text(
                 value='{}'.format(name),
@@ -1155,6 +1157,11 @@ class TemporalGraphFigure(object):
         # Substract approximate height of control widgets to fit in the box
         self.__figure_data['layout']['width'] = self.__display_size[0]-20
         self.__figure_data['layout']['height'] = self.__display_size[1]-20
+        # Make plot more compact
+        self.__figure_data['layout']['margin'] = plotly.graph_objs.Margin(
+            t=20,
+            pad=0
+        )
         self.__figure_data['layout']['hovermode'] = 'closest'
         self.__figure_data['layout']['yaxis'] = {
             'range': [-1.1, 1.1],
@@ -1196,7 +1203,7 @@ class TemporalGraphFigure(object):
                     }
                 ],
                 'direction': 'left',
-                'pad': {'r': 10, 't': 87},
+                'pad': {'r': 10, 't': 37},
                 'showactive': False,
                 'type': 'buttons',
                 'x': 0.1,
@@ -1216,7 +1223,7 @@ class TemporalGraphFigure(object):
                 'xanchor': 'right'
             },
             'transition': {'duration': 300, 'easing': 'immediate'},
-            'pad': {'b': 10, 't': 50},
+            'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
             'y': 0,
@@ -1327,34 +1334,47 @@ class TemporalGraphFigure(object):
 
 
 class LoadingIndicator(object):
-    __loading_images = {
+    loading_images = {
         'big': "images/loading.svg",
         'small': "images/loading_small.svg"
     }
 
     def __init__(self, size: str, outer_layout: widgets.Layout):
-        if size not in self.__loading_images:
-            raise ValueError(f"'{size}' is not a valid size. Must be one of {self.__loading_images.keys()}")
+        """
+        An SVG loading indicator that can be stopped/hidden and resumed.
+        Provides a widget.Box that uses size of specified layout to act as placeholder,
+        and contains the actual loading indicator.
+        Initially the box is hidden and must be made visible with start().
+
+        Args:
+            size: String that indicates size of loading icon graphic. Can be 'small' or 'big'.
+            outer_layout: A layout which size parameters will be used for the box layout as placeholder.
+        """
+        if size not in LoadingIndicator.loading_images:
+            raise ValueError(f"'{size}' is not a valid size. Must be one of {LoadingIndicator.loading_images.keys()}")
+        self.__size = size
+        self.__output = widgets.Output()
+        # Copy size parameters and center the content/loading indicator itself
         layout = widgets.Layout(
             width=outer_layout.width,
             height=outer_layout.height,
             align_items='center',
             justify_content='center'
         )
-        output = widgets.Output()
-        with output:
-            ipydisplay.display(ipydisplay.SVG(filename=self.__loading_images[size]))
-
-        self.__box = widgets.VBox(children=[output], layout=layout)
+        self.__box = widgets.VBox(children=[self.__output], layout=layout)
         self.stop()
 
     def get_box(self):
         return self.__box
 
     def start(self):
-        pass
+        """Shows the loading indicator."""
+        with self.__output:
+            ipydisplay.display(ipydisplay.SVG(filename=LoadingIndicator.loading_images[self.__size]))
         self.__box.layout.display = 'flex'
 
     def stop(self):
-        pass
+        """Hides the loading indicator."""
+        with self.__output:
+            ipydisplay.clear_output()
         self.__box.layout.display = 'none'
