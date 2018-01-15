@@ -204,7 +204,7 @@ class UIDataUploadManager(object):
                 error_msg = f'File {file} does not exist'
                 self.display_metadata_upload_error(error_msg)
             except (urllib.error.HTTPError, urllib.error.URLError):
-                error_msg = f'Could not access URL {url}'
+                error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Column 1 in {file} cannot be parsed to integer'
@@ -411,12 +411,14 @@ class UIGraphDisplayManager(object):
     def __init__(self,
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
-                 layout_vbox: widgets.VBox
+                 layout_vbox: widgets.VBox,
+                 loading_indicator: 'LoadingIndicator'
                  ):
         self.__display_output = display_output
         self.__display_size = display_size
 
         self.__layout_vbox = layout_vbox
+        self.__loading_indicator = loading_indicator
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
@@ -536,6 +538,9 @@ class UIGraphDisplayManager(object):
             self.__apply_layout_button.disabled = True
             old_button_name = self.__apply_layout_button.description
             self.__apply_layout_button.description = 'Loading...'
+            self.__loading_indicator.start()
+            with self.__display_output:
+                ipydisplay.clear_output()
             # Compute layout...
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
@@ -549,6 +554,7 @@ class UIGraphDisplayManager(object):
             self.__set_current_layout_widgets()
             # Update graph display
             self.display_graph()
+            self.__loading_indicator.stop()
 
         return apply_layout
 
