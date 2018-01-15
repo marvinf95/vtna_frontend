@@ -521,11 +521,14 @@ class UIGraphDisplayManager(object):
 
     def notify(self, observable) -> None:
         if isinstance(observable, UIAttributeQueriesManager):
+            # => Call from QueryManager class
+            self.__start_graph_loading()
             node_filter = observable.get_node_filter()
             self.__figure.update_filter(node_filter)
             node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
             self.__figure.update_colors(node_colors)
             self.display_graph()
+            self.__stop_graph_loading()
 
     def __display_layout_description(self):
         description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
@@ -540,9 +543,7 @@ class UIGraphDisplayManager(object):
             self.__apply_layout_button.disabled = True
             old_button_name = self.__apply_layout_button.description
             self.__apply_layout_button.description = 'Loading...'
-            self.__loading_indicator.start()
-            with self.__display_output:
-                ipydisplay.clear_output()
+            self.__start_graph_loading()
             # Compute layout...
             self.__layout_function = self.__layout_select.value
             self.__display_layout_description()
@@ -556,7 +557,7 @@ class UIGraphDisplayManager(object):
             self.__set_current_layout_widgets()
             # Update graph display
             self.display_graph()
-            self.__loading_indicator.stop()
+            self.__stop_graph_loading()
 
         return apply_layout
 
@@ -609,6 +610,14 @@ class UIGraphDisplayManager(object):
             ])
         widget_list.append(self.__layout_description_output)
         self.__layout_vbox.children = widget_list
+
+    def __start_graph_loading(self):
+        self.__loading_indicator.start()
+        with self.__display_output:
+            ipydisplay.clear_output()
+
+    def __stop_graph_loading(self):
+        self.__loading_indicator.stop()
 
 
 class UIAttributeQueriesManager(object):
