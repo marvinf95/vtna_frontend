@@ -883,9 +883,10 @@ class UIAttributeQueriesManager(object):
 
     def __fetch_current_value(self) -> typ.Any:
         attribute_type = self.__metadata[self.__attributes_dropdown.value]['type']
-        return {'N': self.__nominal_value_dropdown.value,
-                'I': self.__interval_value_int_slider,
-                'O': self.__ordinal_value_selection_range_slider}[attribute_type]
+        return {'N': self.__nominal_value_dropdown.value,  # string
+                'I': self.__interval_value_int_slider.value,  # tuple of 2 ints
+                'O': self.__ordinal_value_selection_range_slider.value  # tuple of 2 strings
+                }[attribute_type]
 
     def __build_add_query(self) -> typ.Callable:
         def on_click(_):
