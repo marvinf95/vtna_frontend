@@ -1,4 +1,5 @@
 import datetime
+import os
 import typing as typ
 import enum
 import urllib
@@ -75,6 +76,9 @@ class UIDataUploadManager(object):
         self.__metadata = None  # type: vtna.data_import.MetadataTable
 
         self.__granularity = None
+
+        if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
+            os.mkdir(UIDataUploadManager.UPLOAD_DIR)
 
     def get_edge_list(self) -> typ.List[vtna.data_import.TemporalEdge]:
         return self.__edge_list
