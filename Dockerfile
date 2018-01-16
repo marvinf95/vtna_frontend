@@ -14,7 +14,7 @@ WORKDIR /home/jovyan
 COPY vtna ./vtna
 COPY frontend ./frontend
 RUN pip install --no-cache-dir -r frontend/requirements.txt
-RUN pip install --no-cache-dir -r vtna/requirements.txt
+#RUN pip install --no-cache-dir -r vtna/requirements.txt
 RUN pip install vtna/
 
 USER root
