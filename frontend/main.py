@@ -2,6 +2,7 @@ import datetime
 import os
 import typing as typ
 import enum
+import collections
 import urllib
 import urllib.error
 
@@ -15,6 +16,7 @@ import pystache
 import vtna.data_import
 import vtna.filter
 import vtna.graph
+import vtna.node_measure
 import vtna.layout
 import vtna.statistics
 import vtna.utility
@@ -1142,9 +1144,61 @@ def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.Metadata
     return pred
 
 
+class NodeMeasuresManager(object):
+
+    # A dictionary is used for easier returning of specific measures
+    node_measure_types = {
+        'LOCAL_DEGREE_CENTRALITY': vtna.node_measure.LocalDegreeCentrality,
+        'GLOGAL_DEGREE_CENTRALITY': vtna.node_measure.GlobalDegreeCentrality,
+        'LOCAL_BETWEENNESS_CENTRALITY': vtna.node_measure.LocalBetweennessCentrality,
+        'GLOBAL_BETWEENNESS_CENTRALITY': vtna.node_measure.GlobalBetweennessCentrality,
+        'LOCAL_CLOSENESS_CENTRALITY': vtna.node_measure.LocalClosenessCentrality,
+        'GLOBAL_CLOSENESS_CENTRALITY': vtna.node_measure.GlobalClosenessCentrality
+    }
+
+    def __init__(self, temporal_graph: vtna.graph.TemporalGraph, requested_node_measures: typ.List[str]):
+        """
+        Computes specified node measures without attaching them to the graph.
+
+        Args:
+            requested_node_measures: List of keyword strings of dictionary
+                UINodeMeasuresManager.node_measures
+        Raises:
+            DuplicateMeasuresError: If a measure is specified multiple times
+        """
+        self.__node_measures: typ.Dict[str, vtna.node_measure.NodeMeasure]
+
+        # Prevent duplicate measures
+        measure_type_counter = collections.Counter()
+        measure_type_counter.update(requested_node_measures)
+        duplicate_names = set(n for n, c in measure_type_counter.items() if c > 1)
+        if len(duplicate_names) > 0:
+            raise self.DuplicateMeasuresError(duplicate_names)
+
+        # Instantiate and compute node measures
+        self.__node_measures = dict([(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
+
+    def add_all_to_graph(self):
+        """Adds all currently computed node measures to the temporal graph."""
+        for nm in self.__node_measures.values():
+            nm.add_to_graph()
+
+    def get_node_measure(self, node_measure_type: str):
+        """Returns NodeMeasure object of provided type."""
+        return self.__node_measures[node_measure_type]
+
+    class DuplicateMeasuresError(ValueError):
+        def __init__(self, names: typ.Set[str]):
+            self.message = f'Node measures {", ".join(names)} are duplicates'
+            self.illegal_names = names
+
+
 class TemporalGraphFigure(object):
-    def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
-                 display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]]):
+    def __init__(self,
+                 temp_graph: vtna.graph.TemporalGraph,
+                 layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
+                 display_size: typ.Tuple[int, int],
+                 color_map: typ.Union[str, typ.Dict[int, str]]):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
