@@ -97,6 +97,9 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
+    def get_selected_measures(self) -> typ.Dict[str, bool]:
+        return dict([(name, checkbox.value) for name, checkbox in self.__measure_selection_checkboxes.items()])
+
     def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
         for attribute_id, enabled in order_enabled.items():
             if not enabled:
@@ -452,6 +455,8 @@ class UIGraphDisplayManager(object):
 
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
 
+        self.__node_measure_manager = None  # type: NodeMeasuresManager
+
         self.__figure = None  # type: TemporalGraphFigure
 
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
@@ -528,12 +533,17 @@ class UIGraphDisplayManager(object):
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
                             metadata: vtna.data_import.MetadataTable,
-                            granularity: int
+                            granularity: int,
+                            selected_measures: typ.Dict[str, bool]
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
+
         self.__figure = TemporalGraphFigure(self.__temp_graph, layout, self.__display_size, UIGraphDisplayManager.DEFAULT_COLOR)
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph, [m for m, selected in selected_measures.items() if selected])
+        self.__node_measure_manager.add_all_to_graph()
 
     def display_graph(self):
         with self.__display_output:
