@@ -443,6 +443,7 @@ class UIGraphDisplayManager(object):
             # Width of dropdown is based on maximal length of function name.
             layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
         )
+        self.__layout_select.observe(self.__build_select_layout())
 
         # left padding so the right align of the drop down label is simulated, I cannot get text-align to work,
         # so this is the alternative approach.
@@ -574,20 +575,29 @@ class UIGraphDisplayManager(object):
             self.__start_graph_loading()
             # Compute layout...
             self.__layout_function = self.__layout_select.value
-            self.__display_layout_description()
             layout = self.__compute_layout()
             # ... and update figure
             self.__figure.update_layout(layout)
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
-            # Set widget layout for parameters of new layout
-            self.__set_current_layout_widgets()
             # Update graph display
             self.display_graph()
             self.__stop_graph_loading()
 
         return apply_layout
+
+    def __build_select_layout(self) -> typ.Callable:
+        def select_layout(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__apply_layout_button.disabled = True
+                self.__layout_select.disabled = True
+                self.__display_layout_description()
+                # Set widget layout for parameters of new layout
+                self.__set_current_layout_widgets()
+                self.__layout_select.disabled = False
+                self.__apply_layout_button.disabled = False
+        return select_layout
 
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
