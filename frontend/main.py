@@ -447,7 +447,7 @@ class UIGraphDisplayManager(object):
 
         # left padding so the right align of the drop down label is simulated, I cannot get text-align to work,
         # so this is the alternative approach.
-        self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
+        self.__layout_description_output = widgets.Output()
         self.__display_layout_description()
 
         parameter_widget_layout = widgets.Layout(width='50rem')
