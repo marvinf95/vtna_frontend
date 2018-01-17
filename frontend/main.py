@@ -407,17 +407,22 @@ class UIGraphDisplayManager(object):
         vtna.layout.chained_weighted_spring_layout,
         vtna.layout.random_walk_pca_layout
     ]
-    # TODO: Replace with color picker at some point
-    DEFAULT_COLOR = '#000000'
 
     def __init__(self,
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox,
-                 loading_indicator: 'LoadingIndicator'
+                 loading_indicator: 'LoadingIndicator',
+                 style_manager: 'UIDefaultStyleOptionsManager'
                  ):
         self.__display_output = display_output
         self.__display_size = display_size
+
+        self.__style_manager = style_manager
+        self.__style_manager.register_graph_display_manager(self)
+
+        # queries_manager has to be added later.
+        self.__queries_manager = None  # type: UIAttributeQueriesManager
 
         self.__layout_vbox = layout_vbox
         self.__loading_indicator = loading_indicator
@@ -504,12 +509,15 @@ class UIGraphDisplayManager(object):
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
                             metadata: vtna.data_import.MetadataTable,
-                            granularity: int
+                            granularity: int,
+                            queries_manager: 'UIAttributeQueriesManager',
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
-        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, self.__display_size, UIGraphDisplayManager.DEFAULT_COLOR)
+        self.__figure = TemporalGraphFigure(self.__temp_graph, layout, self.__display_size,
+                                            self.__style_manager.get_node_color())
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+        self.__queries_manager = queries_manager
 
     def display_graph(self):
         with self.__display_output:
@@ -523,9 +531,16 @@ class UIGraphDisplayManager(object):
         if isinstance(observable, UIAttributeQueriesManager):
             # => Call from QueryManager class
             self.__start_graph_loading()
+
             node_filter = observable.get_node_filter()
             self.__figure.update_filter(node_filter)
-            node_colors = observable.get_node_colors(self.__temp_graph, UIGraphDisplayManager.DEFAULT_COLOR)
+            node_colors = observable.get_node_colors(self.__temp_graph, self.__style_manager.get_node_color())
+            self.__figure.update_colors(node_colors)
+            self.display_graph()
+            self.__stop_graph_loading()
+        elif isinstance(observable, UIDefaultStyleOptionsManager):
+            self.__start_graph_loading()
+            node_colors = self.__queries_manager.get_node_colors(self.__temp_graph, observable.get_node_color())
             self.__figure.update_colors(node_colors)
             self.display_graph()
             self.__stop_graph_loading()
@@ -652,13 +667,14 @@ class UIAttributeQueriesManager(object):
         self.__highlight_queries = dict()  # type: typ.Dict
         self.__active_highlight_queries = list()  # type: typ.List[int]
 
-        self.__build_queries_menu()
+        if self.__metadata != {}:
+            self.__build_queries_menu()
 
-        self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
-        self.__attributes_dropdown.observe(self.__build_on_attribute_change())
-        self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
-        self.__add_new_filter_button.on_click(self.__build_add_query())
-        self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
+            self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
+            self.__attributes_dropdown.observe(self.__build_on_attribute_change())
+            self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
+            self.__add_new_filter_button.on_click(self.__build_add_query())
+            self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
         attributes = list(self.__metadata.keys())
@@ -701,7 +717,7 @@ class UIAttributeQueriesManager(object):
         # Colorpicker
         self.__color_picker = widgets.ColorPicker(
             concise=False,
-            value='blue',
+            value='#0000FF',
             description='Color:',
             disabled=False
         )
@@ -1062,10 +1078,13 @@ class UIAttributeQueriesManager(object):
 
 
 def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
-    result = dict((name,
-                   {'type': 'O' if metadata.is_ordered(name) else 'N',
-                    'values': metadata.get_categories(name)})
-                  for name in metadata.get_attribute_names())
+    if metadata is None:
+        result = dict()
+    else:
+        result = dict((name,
+                       {'type': 'O' if metadata.is_ordered(name) else 'N',
+                        'values': metadata.get_categories(name)})
+                      for name in metadata.get_attribute_names())
     return result
 
 
@@ -1387,3 +1406,52 @@ class LoadingIndicator(object):
         with self.__output:
             ipydisplay.clear_output()
         self.__box.layout.display = 'none'
+
+
+class UIDefaultStyleOptionsManager(object):
+    INIT_NODE_COLOR = '#000000'
+
+    def __init__(self, options_hbox: widgets.HBox):
+        self.__options_hbox = options_hbox
+        self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
+
+        self.__node_color_picker = widgets.ColorPicker(
+            concise=False,
+            value=UIDefaultStyleOptionsManager.INIT_NODE_COLOR,
+            disabled=False,
+            layout=widgets.Layout(width='8em')
+        )
+
+        self.__apply_changes_button = widgets.Button(
+            description='Apply',
+            disabled=False,
+            button_style='primary',
+            tooltip='Apply default style',
+            layout=widgets.Layout(width='6em')
+        )
+        self.__apply_changes_button.on_click(self.__build_on_change())
+
+        self.__options_hbox.children = [
+            widgets.VBox([widgets.Label('Node'), self.__node_color_picker]),
+            widgets.VBox([self.__apply_changes_button])
+        ]
+
+    def register_graph_display_manager(self, manager: UIGraphDisplayManager):
+        self.__graph_display_managers.append(manager)
+
+    def __build_on_change(self) -> typ.Callable:
+        def on_change(_):
+            self.__apply_changes_button.disabled = True
+            tmp_description = self.__apply_changes_button.description
+            self.__apply_changes_button.description = 'Loading...'
+            self.__notify_all_graph_display_managers()
+            self.__apply_changes_button.description = tmp_description
+            self.__apply_changes_button.disabled = False
+        return on_change
+
+    def __notify_all_graph_display_managers(self):
+        for manager in self.__graph_display_managers:
+            manager.notify(self)
+
+    def get_node_color(self) -> str:
+        return self.__node_color_picker.value
