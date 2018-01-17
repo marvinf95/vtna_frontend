@@ -519,7 +519,8 @@ class UIGraphDisplayManager(object):
                                             display_size=self.__display_size,
                                             color_map=self.__style_manager.get_node_color(),
                                             edge_color=self.__style_manager.get_edge_color(),
-                                            node_size=self.__style_manager.get_node_size()
+                                            node_size=self.__style_manager.get_node_size(),
+                                            edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
         self.__queries_manager = queries_manager
@@ -549,9 +550,11 @@ class UIGraphDisplayManager(object):
             node_colors = self.__queries_manager.get_node_colors(self.__temp_graph, observable.get_node_color())
             edge_color = self.__style_manager.get_edge_color()
             node_size = self.__style_manager.get_node_size()
+            edge_width = self.__style_manager.get_edge_width()
             self.__figure.update_colors(node_colors)
             self.__figure.update_edge_color(edge_color)
             self.__figure.update_node_size(node_size)
+            self.__figure.update_edge_width(edge_width)
             self.display_graph()
             self.__stop_graph_loading()
 
@@ -1174,7 +1177,7 @@ def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.Metadata
 class TemporalGraphFigure(object):
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
                  display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]], edge_color: str,
-                 node_size: float):
+                 node_size: float, edge_width: float):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
@@ -1183,6 +1186,7 @@ class TemporalGraphFigure(object):
         self.__color_map = color_map
         self.__edge_color = edge_color
         self.__node_size = node_size
+        self.__edge_width = edge_width
 
         self.__node_filter = vtna.filter.NodeFilter(lambda _: True)
         self.__figure_data = None  # type: typ.Dict
@@ -1302,6 +1306,12 @@ class TemporalGraphFigure(object):
             self.__resize_displayed_nodes()
             self.__set_figure_data_as_initial_frame()
 
+    def update_edge_width(self, width: float):
+        if self.__edge_width != width:
+            self.__edge_width = width
+            self.__resize_displayed_edges()
+            self.__set_figure_data_as_initial_frame()
+
     def __build_data_frames(self):
         self.__init_figure_data()
 
@@ -1312,7 +1322,10 @@ class TemporalGraphFigure(object):
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
-                line={'width': 0.6, 'color': self.__edge_color},
+                line={
+                    'width': self.__edge_width,
+                    'color': self.__edge_color
+                },
                 hoverinfo='none',
                 mode='lines'
             )
@@ -1391,6 +1404,10 @@ class TemporalGraphFigure(object):
         for i in range(len(self.__figure_data['frames'])):
             self.__figure_data['frames'][i]['data'][1]['marker']['size'] = self.__node_size
 
+    def __resize_displayed_edges(self):
+        for i in range(len(self.__figure_data['frames'])):
+            self.__figure_data['frames'][i]['data'][0]['line']['width'] = self.__edge_width
+
     def __set_figure_data_as_initial_frame(self):
         # Call this method after completing changes in __figure_data
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
@@ -1447,6 +1464,7 @@ class UIDefaultStyleOptionsManager(object):
     INIT_NODE_COLOR = '#000000'
     INIT_EDGE_COLOR = '#000000'
     INIT_NODE_SIZE = 10.0
+    INIT_EDGE_SIZE = 0.6
 
     def __init__(self, options_hbox: widgets.HBox):
         self.__options_hbox = options_hbox
@@ -1471,6 +1489,11 @@ class UIDefaultStyleOptionsManager(object):
             layout=widgets.Layout(width='8em')
         )
 
+        self.__edge_size_float_text = widgets.FloatText(
+            value=UIDefaultStyleOptionsManager.INIT_EDGE_SIZE,
+            layout=widgets.Layout(width='8em')
+        )
+
         self.__apply_changes_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -1482,7 +1505,7 @@ class UIDefaultStyleOptionsManager(object):
 
         self.__options_hbox.children = [
             widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
-            widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker]),
+            widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text]),
             widgets.VBox([self.__apply_changes_button])
         ]
 
@@ -1511,3 +1534,6 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_node_size(self) -> float:
         return self.__node_size_float_text.value
+
+    def get_edge_width(self) -> float:
+        return self.__edge_size_float_text.value
