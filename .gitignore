@@ -11,6 +11,9 @@ vtna/vtna/tests/__pycache__/
 venv/
 cover/
 .ipynb_checkpoints/
-frontend/upload/*
 frontend/__pycache__/
 */temp-plot.html
+frontend/upload/
+chromedriver
+phantomjs
+
