@@ -1486,11 +1486,13 @@ class UIDefaultStyleOptionsManager(object):
 
         self.__node_size_float_text = widgets.FloatText(
             value=UIDefaultStyleOptionsManager.INIT_NODE_SIZE,
+            min=0.0,
             layout=widgets.Layout(width='8em')
         )
 
         self.__edge_size_float_text = widgets.FloatText(
             value=UIDefaultStyleOptionsManager.INIT_EDGE_SIZE,
+            min=0.0,
             layout=widgets.Layout(width='8em')
         )
 
@@ -1517,6 +1519,7 @@ class UIDefaultStyleOptionsManager(object):
             self.__apply_changes_button.disabled = True
             tmp_description = self.__apply_changes_button.description
             self.__apply_changes_button.description = 'Loading...'
+            self.__absolute_all_size_inputs()
             self.__notify_all_graph_display_managers()
             self.__apply_changes_button.description = tmp_description
             self.__apply_changes_button.disabled = False
@@ -1525,6 +1528,10 @@ class UIDefaultStyleOptionsManager(object):
     def __notify_all_graph_display_managers(self):
         for manager in self.__graph_display_managers:
             manager.notify(self)
+
+    def __absolute_all_size_inputs(self):
+        self.__edge_size_float_text.value = abs(self.__edge_size_float_text.value)
+        self.__node_size_float_text.value = abs(self.__node_size_float_text.value)
 
     def get_node_color(self) -> str:
         return self.__node_color_picker.value
