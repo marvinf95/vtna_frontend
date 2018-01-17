@@ -52,7 +52,8 @@ class UIDataUploadManager(object):
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
                  # Graph data configuration widgets
-                 graph_data_configuration_vbox: widgets.VBox  # Container, for configuration of graph data
+                 graph_data_configuration_vbox: widgets.VBox,  # Container, for configuration of graph data
+                 measures_select_box: widgets.Box  # Container, for selecting wanted measures
                  ):
         self.__run_button = run_button
         run_button.disabled = True
@@ -79,8 +80,13 @@ class UIDataUploadManager(object):
 
         self.__granularity = None
 
+        self.__measure_selection_checkboxes = None  # type: typ.Dict[str, widgets.Checkbox]
+
+        # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
+
+        self.__display_measure_selection(measures_select_box)
 
     def get_edge_list(self) -> typ.List[vtna.data_import.TemporalEdge]:
         return self.__edge_list
@@ -351,6 +357,22 @@ class UIDataUploadManager(object):
 
         self.__graph_data__configuration_vbox.children = \
             [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
+
+    def __display_measure_selection(self, container_box: widgets.Box):
+        # Reset internal widget dict
+        self.__measure_selection_checkboxes = {}
+        header = widgets.Output()
+        with header:
+            ipydisplay.display(ipydisplay.HTML("<h2>Available Measures:</h2>"))
+        widget_list = [header]
+        for measure_name in NodeMeasuresManager.node_measure_types:
+            self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
+                value=False,
+                description=NodeMeasuresManager.node_measure_types[measure_name].get_name(),
+                disabled=False
+            )
+            widget_list.append(self.__measure_selection_checkboxes[measure_name])
+        container_box.children = widget_list
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
