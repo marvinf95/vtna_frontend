@@ -1278,7 +1278,6 @@ class TemporalGraphFigure(object):
                 hoverinfo='text',
                 marker={
                     'size': 10,
-                    'line': {'width': 2},
                     'color': '#000000'
                 }
             )
