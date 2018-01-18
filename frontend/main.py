@@ -1,10 +1,12 @@
 import enum
 import os
+import re
 import typing as typ
 import urllib
 import urllib.error
 
 import IPython.display as ipydisplay
+from IPython.core.display import display, HTML
 import fileupload
 import matplotlib.pyplot as plt
 import plotly.graph_objs
@@ -17,6 +19,7 @@ import vtna.statistics
 import vtna.utility
 from ipywidgets import widgets
 
+        
 
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
@@ -530,7 +533,12 @@ class UIGraphDisplayManager(object):
     def display_graph(self):
         with self.__display_output:
             ipydisplay.clear_output()
-            plotly.offline.iplot(self.__figure.get_figure(), config={})
+            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={}, show_link=False, output_type='div')
+            pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
+            with self.__display_output:
+                ipydisplay.clear_output()
+                display(HTML(pl1))
+                
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
