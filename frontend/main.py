@@ -1408,21 +1408,34 @@ class TemporalGraphFigure(object):
 
     def createvideo(self, button):
         ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js" charset="utf-8"></script>'))
-        for i in [0]:  # range(len(self.__figure_data['frames'])):
+        for i in range(5):  # range(len(self.__figure_data['frames'])):
             self.__createframe(self.__figure_data['frames'][i]['data'], i)
 
     def __createframe(self, data, index):
         ipydisplay.display(ipydisplay.HTML(
-            '<div hidden>' +
+            # First we remove the previous plot div, if existing, for not
+            # causing memory leaks and easier access
+            '''
+            <script>
+            var tmpPlot = document.getElementById("tmp-plotly-plot");
+            if(tmpPlot === null || tmpPlot === undefined) {
+                element.parentNode.removeChild(tmpPlot);
+            }
+            </script>
+            ''' +
+            # Wrap our plot with a hidden div
+            '<div hidden id="tmp-plotly-plot">' +
+            # plot() returns the html div with the plot itself
             plotly.offline.plot({'data': data,
                                  'layout': {'title': 'Video export',
                                             'font': dict(size=12)}},
                                 output_type='div', include_plotlyjs=False)
+            # Execute the javascript that extracts the image
             + '''
             </div>
             <script>
             // Returns a Promise
-            Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[0])
+            Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[1])
                 .then(function(imgData) {
                     // Remove data URL prefix and store as binary python variable
                     var command = "main.write_frame(b'" + imgData.replace("data:image/png;base64,", "") + "', '''
