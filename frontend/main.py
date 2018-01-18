@@ -10,7 +10,9 @@ import IPython.display as ipydisplay
 from ipywidgets import widgets
 import matplotlib.pyplot as plt
 import plotly.graph_objs
+import plotly
 import pystache
+import base64
 
 import vtna.data_import
 import vtna.filter
@@ -503,6 +505,13 @@ class UIGraphDisplayManager(object):
             tooltip='Apply Layout',
         )
 
+        self.__download_button = widgets.Button(
+            description='Download Video',
+            disabled=False,
+            button_style='primary',
+            tooltip='Download Video',
+        )
+
         self.__apply_layout_button.on_click(self.__build_apply_layout())
 
         self.__set_current_layout_widgets()
@@ -526,6 +535,7 @@ class UIGraphDisplayManager(object):
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
         self.__queries_manager = queries_manager
         self.__queries_manager.register_graph_display_manager(self)
+        self.__download_button.on_click(self.__figure.createvideo)
 
     def display_graph(self):
         with self.__display_output:
@@ -627,6 +637,7 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
+        widget_list.append(widgets.HBox([self.__download_button]))
         widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
@@ -1395,6 +1406,34 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
         self.__set_figure_data_as_initial_frame()
 
+    def createvideo(self, button):
+        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js" charset="utf-8"></script>'))
+        for i in [0]:  # range(len(self.__figure_data['frames'])):
+            self.__createframe(self.__figure_data['frames'][i]['data'], i)
+
+    def __createframe(self, data, index):
+        ipydisplay.display(ipydisplay.HTML(
+            '<div hidden>' +
+            plotly.offline.plot({'data': data,
+                                 'layout': {'title': 'Video export',
+                                            'font': dict(size=12)}},
+                                output_type='div', include_plotlyjs=False)
+            + '''
+            </div>
+            <script>
+            // Returns a Promise
+            Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[0])
+                .then(function(imgData) {
+                    // Remove data URL prefix and store as binary python variable
+                    var command = "main.write_frame(b'" + imgData.replace("data:image/png;base64,", "") + "', '''
+            + str(index) + ''')";
+                    //console.log(command);
+                    IPython.notebook.kernel.execute(command);
+            });
+            </script>
+            '''
+        ))
+
     def __recolor_displayed_nodes(self):
         node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
         for i in range(len(self.__figure_data['frames'])):
@@ -1554,3 +1593,12 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_edge_width(self) -> float:
         return self.__edge_size_float_text.value
+
+
+def write_frame(img_data, index):
+    print("writing", index)
+    # Decode base64 string to binary
+    img_binary = base64.decodebytes(img_data)
+    # Write binary to png file
+    with open(f"tmp/frame{index}.png", "wb") as f:
+        f.write(img_binary)
