@@ -14,3 +14,6 @@ cover/
 frontend/__pycache__/
 */temp-plot.html
 frontend/upload/
+chromedriver
+phantomjs
+

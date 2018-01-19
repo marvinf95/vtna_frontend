@@ -1,24 +1,25 @@
-import datetime
-import os
-import typing as typ
 import enum
+import os
+import re
+import typing as typ
 import urllib
 import urllib.error
 
-import fileupload
 import IPython.display as ipydisplay
-from ipywidgets import widgets
+from IPython.core.display import display, HTML
+import fileupload
 import matplotlib.pyplot as plt
 import plotly.graph_objs
 import pystache
-
 import vtna.data_import
 import vtna.filter
 import vtna.graph
 import vtna.layout
 import vtna.statistics
 import vtna.utility
+from ipywidgets import widgets
 
+        
 
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
@@ -99,7 +100,8 @@ class UIDataUploadManager(object):
             else:
                 # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
                 attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
-            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
+            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in
+                     sorted(attribute_order.keys())]
             self.__metadata.order_categories(attribute_name, order)
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
@@ -377,7 +379,8 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         list_width = max(map(len, category))
         # list of lis for every attribute category
         # TODO: Make width work to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in range(len(category))]
+        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in
+                   range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener
         ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
@@ -443,10 +446,11 @@ class UIGraphDisplayManager(object):
             # Width of dropdown is based on maximal length of function name.
             layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
         )
+        self.__layout_select.observe(self.__build_select_layout())
 
         # left padding so the right align of the drop down label is simulated, I cannot get text-align to work,
         # so this is the alternative approach.
-        self.__layout_description_output = widgets.Output(layout=widgets.Layout(padding='0 0 0 4rem'))
+        self.__layout_description_output = widgets.Output()
         self.__display_layout_description()
 
         parameter_widget_layout = widgets.Layout(width='50rem')
@@ -529,7 +533,12 @@ class UIGraphDisplayManager(object):
     def display_graph(self):
         with self.__display_output:
             ipydisplay.clear_output()
-            plotly.offline.iplot(self.__figure.get_figure(), config={})
+            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={}, show_link=False, output_type='div')
+            pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
+            with self.__display_output:
+                ipydisplay.clear_output()
+                display(HTML(pl1))
+                
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
@@ -574,20 +583,30 @@ class UIGraphDisplayManager(object):
             self.__start_graph_loading()
             # Compute layout...
             self.__layout_function = self.__layout_select.value
-            self.__display_layout_description()
             layout = self.__compute_layout()
             # ... and update figure
             self.__figure.update_layout(layout)
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
             self.__apply_layout_button.disabled = False
-            # Set widget layout for parameters of new layout
-            self.__set_current_layout_widgets()
             # Update graph display
             self.display_graph()
             self.__stop_graph_loading()
 
         return apply_layout
+
+    def __build_select_layout(self) -> typ.Callable:
+        def select_layout(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__apply_layout_button.disabled = True
+                self.__layout_select.disabled = True
+                self.__display_layout_description()
+                # Set widget layout for parameters of new layout
+                self.__set_current_layout_widgets()
+                self.__layout_select.disabled = False
+                self.__apply_layout_button.disabled = False
+
+        return select_layout
 
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
@@ -1202,8 +1221,8 @@ class TemporalGraphFigure(object):
         }
         self.__figure_data['layout']['autosize'] = False
         # Substract approximate height of control widgets to fit in the box
-        self.__figure_data['layout']['width'] = self.__display_size[0]-20
-        self.__figure_data['layout']['height'] = self.__display_size[1]-20
+        self.__figure_data['layout']['width'] = self.__display_size[0] - 20
+        self.__figure_data['layout']['height'] = self.__display_size[1] - 20
         # Make plot more compact
         self.__figure_data['layout']['margin'] = plotly.graph_objs.Margin(
             t=20,
@@ -1523,6 +1542,7 @@ class UIDefaultStyleOptionsManager(object):
             self.__notify_all_graph_display_managers()
             self.__apply_changes_button.description = tmp_description
             self.__apply_changes_button.disabled = False
+
         return on_change
 
     def __notify_all_graph_display_managers(self):
@@ -1544,3 +1564,34 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_edge_width(self) -> float:
         return self.__edge_size_float_text.value
+
+
+class UIStatisticsManager(object):
+
+    def __init__(self,
+                 graph_summary_hbox: widgets.HBox,
+                 node_summary_hbox: widgets.HBox,
+                 node_search_vbox: widgets.VBox,
+                 node_detailed_view_vbox: widgets.VBox,
+                 graph_summary_template_path: str
+                 ):
+        self.__graph_summary_html = widgets.HTML()
+        graph_summary_hbox.children = [self.__graph_summary_html]
+        self.__node_summary_html = widgets.HTML()
+        node_summary_hbox.children = [self.__node_summary_html]
+        with open(graph_summary_template_path) as f:
+            self.__graph_summary_template = f.read()
+
+        self.__temp_graph = None  # type: vtna.graph.TemporalGraph
+
+    def load(self, temp_graph: vtna.graph.TemporalGraph):
+        self.__temp_graph = temp_graph
+        self.__display_graph_summary()
+
+    def __display_graph_summary(self):
+        if self.__temp_graph is None:
+            return
+        total_nodes = len(self.__temp_graph.get_nodes())
+        total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
+        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes, 'total_edges': total_edges})
+        self.__graph_summary_html.value = html
