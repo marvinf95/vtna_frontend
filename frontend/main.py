@@ -1407,25 +1407,31 @@ class TemporalGraphFigure(object):
         self.__set_figure_data_as_initial_frame()
 
     def createvideo(self, button):
-        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js" charset="utf-8"></script>'))
-        for i in range(5):  # range(len(self.__figure_data['frames'])):
+        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
+        for i in range(len(self.__figure_data['frames'])):
             self.__createframe(self.__figure_data['frames'][i]['data'], i)
 
     def __createframe(self, data, index):
         ipydisplay.display(ipydisplay.HTML(
             # First we remove the previous plot div, if existing, for not
-            # causing memory leaks and easier access
+            # causing memory leaks and easier access.
+            # Note that we actually remove the parent, to prevent ugly whitespaces in
+            # the notebook which would also still contain js.
             '''
             <script>
-            var tmpPlot = document.getElementById("tmp-plotly-plot");
-            if(tmpPlot === null || tmpPlot === undefined) {
-                element.parentNode.removeChild(tmpPlot);
+            var tmpPlot = document.getElementById("tmp-plotly-plot'''+str(index-1)+'''");
+            if(tmpPlot != null) {
+                tmpPlot.parentElement.parentElement.removeChild(tmpPlot.parentElement);
+                // Probably not necessary I guess?
+                delete tmpPlot;
             }
             </script>
             ''' +
             # Wrap our plot with a hidden div
-            '<div hidden id="tmp-plotly-plot">' +
-            # plot() returns the html div with the plot itself
+            '<div hidden id="tmp-plotly-plot'+str(index)+'">' +
+            # plot() returns the html div with the plot itself.
+            # Not including plotlyjs improves performance, and is necessary
+            # anyways because it won't work without the customization
             plotly.offline.plot({'data': data,
                                  'layout': {'title': 'Video export',
                                             'font': dict(size=12)}},
@@ -1440,7 +1446,6 @@ class TemporalGraphFigure(object):
                     // Remove data URL prefix and store as binary python variable
                     var command = "main.write_frame(b'" + imgData.replace("data:image/png;base64,", "") + "', '''
             + str(index) + ''')";
-                    //console.log(command);
                     IPython.notebook.kernel.execute(command);
             });
             </script>
@@ -1609,7 +1614,6 @@ class UIDefaultStyleOptionsManager(object):
 
 
 def write_frame(img_data, index):
-    print("writing", index)
     # Decode base64 string to binary
     img_binary = base64.decodebytes(img_data)
     # Write binary to png file
