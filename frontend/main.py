@@ -1407,11 +1407,14 @@ class TemporalGraphFigure(object):
         self.__set_figure_data_as_initial_frame()
 
     def createvideo(self, button):
+        # Already include the modified plotly js library here.
+        # Never do this in a loop
         ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
         for i in range(len(self.__figure_data['frames'])):
             self.__createframe(self.__figure_data['frames'][i]['data'], i)
 
     def __createframe(self, data, index):
+        # noinspection PyTypeChecker
         ipydisplay.display(ipydisplay.HTML(
             # First we remove the previous plot div, if existing, for not
             # causing memory leaks and easier access.
@@ -1441,11 +1444,13 @@ class TemporalGraphFigure(object):
             </div>
             <script>
             // Returns a Promise
+            // We choose the second element with that class, because the first one
+            // is our real plot
             Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[1])
                 .then(function(imgData) {
-                    // Remove data URL prefix and store as binary python variable
+                    // Remove data URL prefix and call main's callback method
                     var command = "main.write_frame(b'" + imgData.replace("data:image/png;base64,", "") + "', '''
-            + str(index) + ''')";
+                        + str(index) + ''')";
                     IPython.notebook.kernel.execute(command);
             });
             </script>
