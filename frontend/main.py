@@ -387,7 +387,7 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         # Surround with td that aligns text at the top, otherwise it would be centered
         ul = f'<td style="vertical-align:top">{ul}</td>'
         body_html += ul
-    # nohover css style prevents blue background on mouse hover event, see dragndrop.css
+    # nohover css style prevents blue background on mouse hover event
     body_html = f'<tr id="nohover">{body_html}</tr>'
 
     table_html = f"""

@@ -10,19 +10,16 @@ var enableSorting = function (ul_list, id) {
         */
         var orderList = e.detail.newEndList;
         // Assign values to python dictionary
-        var updateDictsCommand = "order_dict[" + id + "] = {";
+        var pythonCommand = "order_dict[" + id + "] = {";
         for (var i = 0; i < orderList.length; i++) {
-            updateDictsCommand += i + ": " + orderList[i].value;
+            pythonCommand += i + ": " + orderList[i].value;
             // Append comma if not last dictionary entry
             if (i < orderList.length - 1) {
-                updateDictsCommand += ", ";
+                pythonCommand += ", ";
             }
         }
-        updateDictsCommand += "}"
-        kernel.execute(updateDictsCommand);
-        // Call set order method in main.py to store values already in main,
-        // for easier restoring of values after redrawing the metadata table
-        kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)");
+        pythonCommand += "}"
+        kernel.execute(pythonCommand);
 
     });
     kernel.execute("order_enabled[" + id + "] = True");
