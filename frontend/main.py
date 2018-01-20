@@ -78,6 +78,8 @@ class UIDataUploadManager(object):
 
         self.__granularity = None
 
+        self.__order_enabled = {}  # type: typ.Dict[int, bool]
+
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
 
@@ -91,6 +93,7 @@ class UIDataUploadManager(object):
         return self.__granularity
 
     def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
+        self.__order_enabled = order_enabled
         for attribute_id, enabled in order_enabled.items():
             if not enabled:
                 continue
@@ -253,8 +256,10 @@ class UIDataUploadManager(object):
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
-            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata))
+            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata, self.__order_enabled))
             ipydisplay.display_html(table)  # A tuple is expected as input, but then it won't work for some reason...
+            for column_index in [i for i,e in self.__order_enabled.items() if e]:
+                ipydisplay.display(ipydisplay.Javascript(f'enableSorting({column_index});'))
 
     def __open_column_config(self):
         """
@@ -359,7 +364,7 @@ def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
 
 
-def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
+def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable, order_enabled: typ.Dict[int, bool]) -> str:
     col_names = metadata.get_attribute_names()
     categories = [metadata.get_categories(name) for name in col_names]
 
@@ -367,10 +372,11 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
     header_html = ""
     # Checkbox for toggling ordinal
     checkbox_html = """
-        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)" {}> Ordinal</label>"""
     for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+        # Check checkbox if column was already enabled as ordinal before
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(i, "checked" if i in order_enabled and order_enabled[i] else "")}</th>'
     header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists

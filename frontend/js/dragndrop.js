@@ -1,6 +1,13 @@
 var kernel = IPython.notebook.kernel;
 
-var enableSorting = function (ul_list, id) {
+var getUlList = function (id) {
+    return document.getElementById("attr_list" + id);
+}
+
+var enableSorting = function (id) {
+    var ul_list = getUlList(id);
+    // For changing list style to make sortability visible
+    ul_list.classList.add('sortlist')
     sortable(ul_list, {
         forcePlaceholderSize: true
     })[0].addEventListener('sortupdate', function(e) {
@@ -9,6 +16,7 @@ var enableSorting = function (ul_list, id) {
         e.detail.newEndList contains all elements in the list the dragged item was dragged to
         */
         var orderList = e.detail.newEndList;
+        console.log(orderList);
         // Assign values to python dictionary
         var updateDictsCommand = "order_dict[" + id + "] = {";
         for (var i = 0; i < orderList.length; i++) {
@@ -20,31 +28,35 @@ var enableSorting = function (ul_list, id) {
         }
         updateDictsCommand += "}"
         kernel.execute(updateDictsCommand);
-        // Call set order method in main.py to store values already in main,
-        // for easier restoring of values after redrawing the metadata table
-        kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)");
+        notifyMain();
 
     });
     kernel.execute("order_enabled[" + id + "] = True");
+    notifyMain();
 };
 
-var disableSorting = function (ul_list, id) {
+var disableSorting = function (id) {
+    var ul_list = getUlList(id);
+    // Remove from css class if attached
+    if(ul_list.classList.contains('sortlist')) {
+        ul_list.classList.remove('sortlist');
+    }
     // Removes sortability listeners
     sortable(ul_list, 'destroy');
     kernel.execute("order_enabled[" + id + "] = False");
+    notifyMain();
 };
 
+var notifyMain = function () {
+    // Call set order method in main.py to store values already in main,
+    // for easier restoring of values after redrawing the metadata table
+    kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)");
+}
+
 function toggleSortable(checkbox) {
-    // Choose the attribute list corresponding to the toggled checkbox
-    ul_list = document.getElementById("attr_list" + checkbox.value);
     if(checkbox.checked) {
-        // For changing list style to make sortability visible
-        ul_list.classList.add('sortlist')
-        enableSorting(ul_list, checkbox.value)
+        enableSorting(checkbox.value)
     } else {
-        if(ul_list.classList.contains('sortlist')) {
-            ul_list.classList.remove('sortlist');
-        }
-        disableSorting(ul_list, checkbox.value)
+        disableSorting(checkbox.value)
     }
 };
