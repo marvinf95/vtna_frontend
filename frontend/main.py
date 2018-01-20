@@ -242,9 +242,10 @@ class UIDataUploadManager(object):
             plt.xticks(x, [''] * len(x))
             plt.show()
 
-    def display_metadata_upload_error(self, msg):
+    def display_metadata_upload_error(self, msg, clear_output: bool = True):
         with self.__metadata_data_output:
-            ipydisplay.clear_output()
+            if clear_output:
+                ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
 
     def __display_metadata_upload_summary(self, prepend_msgs: typ.List[str] = None):
@@ -293,16 +294,15 @@ class UIDataUploadManager(object):
             for i in range(len(current_names)):
                 if current_names[i] != column_text_fields[i].value:
                     to_rename[current_names[i]] = column_text_fields[i].value
-            msgs = list()
             try:
                 self.__metadata.rename_attributes(to_rename)
                 for i, new_name in enumerate(map(lambda f: f.value, column_text_fields)):
                     current_names[i] = new_name
+                    ipydisplay.display(ipydisplay.Javascript(f'document.getElementById("attr-col-{i}").innerHTML = "{new_name}";'))
             except vtna.data_import.DuplicateTargetNamesError as e:
-                msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} are duplicates\x1b[0m')
+                self.display_metadata_upload_error(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} are duplicates\x1b[0m', clear_output=False)
             except vtna.data_import.RenamingTargetExistsError as e:
-                msgs.append(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} already exist\x1b[0m')
-            self.__display_metadata_upload_summary(prepend_msgs=msgs)
+                self.display_metadata_upload_error(f'\x1b[31mRenaming failed: {", ".join(e.illegal_names)} already exist\x1b[0m', clear_output=False)
 
         rename_button.on_click(apply_rename)
 
@@ -370,7 +370,7 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
     for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+        header_html += f'<th><b id="attr-col-{i}">{col_name}</b><br>{checkbox_html.format(i)}</th>'
     header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists
