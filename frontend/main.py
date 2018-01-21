@@ -13,6 +13,7 @@ import plotly.graph_objs
 import plotly
 import pystache
 import base64
+import imageio
 
 import vtna.data_import
 import vtna.filter
@@ -436,6 +437,7 @@ class UIGraphDisplayManager(object):
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
 
         self.__figure = None  # type: TemporalGraphFigure
+        self.__video_export_manager = None  # type: VideoExport
 
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
         self.__layout_select = widgets.Dropdown(
@@ -513,6 +515,7 @@ class UIGraphDisplayManager(object):
         )
 
         self.__apply_layout_button.on_click(self.__build_apply_layout())
+        self.__download_button.on_click(self.__build_export_video())
 
         self.__set_current_layout_widgets()
 
@@ -535,7 +538,6 @@ class UIGraphDisplayManager(object):
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
         self.__queries_manager = queries_manager
         self.__queries_manager.register_graph_display_manager(self)
-        self.__download_button.on_click(self.__figure.createvideo)
 
     def display_graph(self):
         with self.__display_output:
@@ -659,6 +661,16 @@ class UIGraphDisplayManager(object):
             ])
         widget_list.append(self.__layout_description_output)
         self.__layout_vbox.children = widget_list
+
+    def __build_export_video(self) -> typ.Callable:
+        def export_video(_):
+            self.__video_export_manager = VideoExport(self.__figure.get_figure()['frames'])
+        return export_video
+
+    # This is just a propagation method so the JS code/the notebook can access
+    # the non-static export manager.
+    def write_export_frame(self, img):
+        return self.__video_export_manager.write_frame(img)
 
     def __start_graph_loading(self):
         self.__loading_indicator.start()
@@ -1406,57 +1418,6 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
         self.__set_figure_data_as_initial_frame()
 
-    def createvideo(self, button):
-        # Already include the modified plotly js library here.
-        # Never do this in a loop
-        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
-        for i in range(len(self.__figure_data['frames'])):
-            self.__createframe(self.__figure_data['frames'][i]['data'], i)
-
-    def __createframe(self, data, index):
-        # noinspection PyTypeChecker
-        ipydisplay.display(ipydisplay.HTML(
-            # First we remove the previous plot div, if existing, for not
-            # causing memory leaks and easier access.
-            # Note that we actually remove the parent, to prevent ugly whitespaces in
-            # the notebook which would also still contain js.
-            '''
-            <script>
-            var tmpPlot = document.getElementById("tmp-plotly-plot'''+str(index-1)+'''");
-            if(tmpPlot != null) {
-                tmpPlot.parentElement.parentElement.removeChild(tmpPlot.parentElement);
-                // Probably not necessary I guess?
-                delete tmpPlot;
-            }
-            </script>
-            ''' +
-            # Wrap our plot with a hidden div
-            '<div hidden id="tmp-plotly-plot'+str(index)+'">' +
-            # plot() returns the html div with the plot itself.
-            # Not including plotlyjs improves performance, and is necessary
-            # anyways because it won't work without the customization
-            plotly.offline.plot({'data': data,
-                                 'layout': {'title': 'Video export',
-                                            'font': dict(size=12)}},
-                                output_type='div', include_plotlyjs=False)
-            # Execute the javascript that extracts the image
-            + '''
-            </div>
-            <script>
-            // Returns a Promise
-            // We choose the second element with that class, because the first one
-            // is our real plot
-            Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[1])
-                .then(function(imgData) {
-                    // Remove data URL prefix and call main's callback method
-                    var command = "main.write_frame(b'" + imgData.replace("data:image/png;base64,", "") + "', '''
-                        + str(index) + ''')";
-                    IPython.notebook.kernel.execute(command);
-            });
-            </script>
-            '''
-        ))
-
     def __recolor_displayed_nodes(self):
         node_ids = [node.get_id() for node in self.__node_filter(self.__nodes)]
         for i in range(len(self.__figure_data['frames'])):
@@ -1483,6 +1444,95 @@ class TemporalGraphFigure(object):
     def __set_figure_data_as_initial_frame(self):
         # Call this method after completing changes in __figure_data
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
+
+
+class VideoExport(object):
+    def __init__(self, frames: typ.Dict):
+        # Already include the modified plotly js library here.
+        # Never do this in a loop
+        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
+        # Create the writer object for creating the gif.
+        # Mode I tells the writer to prepare for multiple images.
+        self.__writer = imageio.get_writer('export.gif', mode='I')
+        # We need the amount of frames and the counter for syncing the asynchron js writing
+        # with the closing of the writer
+        self.__frame_count = len(frames)
+        self.__written_frames = 0
+        try:
+            for i in range(self.__frame_count):
+                self.__build_frame(frames[i]['data'], i)
+        except Exception:
+            self.__finish()
+
+    @staticmethod
+    def __build_frame(data, index):
+        # noinspection PyTypeChecker
+        ipydisplay.display(ipydisplay.HTML(
+            # First we remove the previous plot div, if existing, for not
+            # causing memory leaks and easier access.
+            # Note that we actually remove the parent, to prevent ugly whitespaces in
+            # the notebook which would also still contain js.
+            '''
+            <script>
+            var tmpPlot = document.getElementById("tmp-plotly-plot''' + str(index - 1) + '''");
+                    if(tmpPlot != null) {
+                        tmpPlot.parentElement.parentElement.removeChild(tmpPlot.parentElement);
+                        // Probably not necessary I guess?
+                        delete tmpPlot;
+                    }
+                    </script>
+                    ''' +
+            # Wrap our plot with a hidden div
+            '<div hidden id="tmp-plotly-plot' + str(index) + '">' +
+            # plot() returns the html div with the plot itself.
+            # Not including plotlyjs improves performance, and is necessary
+            # anyways because it won't work without the customization
+            plotly.offline.plot({'data': data,
+                                 'layout': {'title': 'Video export',
+                                            'font': dict(size=12)}},
+                                output_type='div', include_plotlyjs=False)
+            # Execute the javascript that extracts the image
+            + '''
+                    </div>
+                    <script>
+                    // This is just a callback construct, so python errors on executing a
+                    // kernel command can be viewed in a browser console.
+                    function handle_output(data){
+                        console.log(data);
+                    }
+                    var callbacks = {
+                            iopub : {
+                                 output : handle_output,
+                        }
+                    }
+                    // Returns a Promise
+                    // We choose the second element with that class, because the first one
+                    // is our real plot
+                    Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[1])
+                        .then(function(imgData) {
+                            // Remove data URL prefix and call main's callback method
+                            var command = "display_manager.write_export_frame(b'" + imgData.replace("data:image/png;base64,", "") + "')";
+                            //console.log(command);
+                            IPython.notebook.kernel.execute(command, callbacks);
+                    });
+                    </script>
+                    '''
+        ))
+
+    # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
+    # can access this non-static method.
+    def write_frame(self, img_base64):
+        # Decode base64 string to binary
+        img_binary = base64.decodebytes(img_base64)
+        # Append binary png image to gif writer
+        self.__writer.append_data(imageio.imread(img_binary))
+        self.__written_frames += 1
+        if self.__written_frames == self.__frame_count:
+            self.__finish()
+
+    def __finish(self):
+        # Flushes and closes the writer
+        self.__writer.close()
 
 
 class LoadingIndicator(object):
@@ -1616,11 +1666,3 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_edge_width(self) -> float:
         return self.__edge_size_float_text.value
-
-
-def write_frame(img_data, index):
-    # Decode base64 string to binary
-    img_binary = base64.decodebytes(img_data)
-    # Write binary to png file
-    with open(f"tmp/frame{index}.png", "wb") as f:
-        f.write(img_binary)
