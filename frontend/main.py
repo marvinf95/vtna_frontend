@@ -1498,18 +1498,19 @@ class VideoExport(object):
         }
         # noinspection PyTypeChecker
         ipydisplay.display(ipydisplay.HTML(
-            # First we remove the previous plot div, if existing, for not
-            # causing memory leaks and easier access.
-            # See export.js for function implementation
-            f'<script>removePlot({str(index-1)});</script>' +
             # Wrap our plot with a hidden div
-            '<div hidden id="tmp-plotly-plot' + str(index) + '">' +
+            '<div hidden id="tmp-plotly-plot' + str(index) + '">'
             # plot() returns the html div with the plot itself.
             # Not including plotlyjs improves performance, and is necessary
             # anyways because it won't work without the customization
-            plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
+            + plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
             # Execute the javascript that extracts the image
+            # See export.js for function implementation
             + '</div><script>extractPlotlyImage();</script>'
+            # Then we remove the div again, for not
+            # causing memory leaks and easier access.
+            # See export.js for function implementation
+            + f'<script>removePlot({str(index-1)});</script>'
         ))
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
