@@ -545,12 +545,11 @@ class UIGraphDisplayManager(object):
     def display_graph(self):
         with self.__display_output:
             ipydisplay.clear_output()
-            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={}, show_link=False, output_type='div')
+            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={'scrollZoom': True}, show_link=False, output_type='div')
             pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
             with self.__display_output:
                 ipydisplay.clear_output()
                 ipydisplay.display(ipydisplay.HTML(pl1))
-
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
@@ -1470,11 +1469,32 @@ class VideoExport(object):
         try:
             for i in range(self.__frame_count):
                 self.__build_frame(frames[i]['data'], i)
-        except Exception:
+        except Exception as e:
             self.__finish()
+            print(e)
 
     @staticmethod
     def __build_frame(data, index):
+        figure = {'layout': {}, 'data': data}
+        # TODO: Layout should be at least partially dependent/copied from original plotly layout
+        figure['layout']['width'] = 500
+        figure['layout']['height'] = 500
+        figure['layout']['showlegend'] = False
+        # Make plot more compact
+        figure['layout']['margin'] = plotly.graph_objs.Margin(
+            t=20,
+            pad=0
+        )
+        figure['layout']['yaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        figure['layout']['xaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
         # noinspection PyTypeChecker
         ipydisplay.display(ipydisplay.HTML(
             # First we remove the previous plot div, if existing, for not
@@ -1496,18 +1516,16 @@ class VideoExport(object):
             # plot() returns the html div with the plot itself.
             # Not including plotlyjs improves performance, and is necessary
             # anyways because it won't work without the customization
-            plotly.offline.plot({'data': data,
-                                 'layout': {'title': 'Video export',
-                                            'font': dict(size=12)}},
-                                output_type='div', include_plotlyjs=False)
+            plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
             # Execute the javascript that extracts the image
             + '''
                     </div>
                     <script>
-                    // This is just a callback construct, so python errors on executing a
-                    // kernel command can be viewed in a browser console.
+                    // This is just a callback construct, so python output and errors 
+                    // (stdout + stderr) on executing a kernel command can be 
+                    // viewed in a browser console.
                     function handle_output(data){
-                        console.log(data);
+                        console.log(data.content);
                     }
                     var callbacks = {
                             iopub : {
@@ -1521,7 +1539,6 @@ class VideoExport(object):
                         .then(function(imgData) {
                             // Remove data URL prefix and call main's callback method
                             var command = "display_manager.write_export_frame(b'" + imgData.replace("data:image/png;base64,", "") + "')";
-                            //console.log(command);
                             IPython.notebook.kernel.execute(command, callbacks);
                     });
                     </script>
@@ -1539,8 +1556,9 @@ class VideoExport(object):
             self.__written_frames += 1
             if self.__written_frames == self.__frame_count:
                 self.__finish()
-        except Exception:
+        except Exception as e:
             self.__writer.close()
+            print(e)
 
     def __finish(self):
         # Flushes and closes the writer
