@@ -16,4 +16,6 @@ frontend/__pycache__/
 frontend/upload/
 chromedriver
 phantomjs
+**/tmp
+**/export.gif
 
