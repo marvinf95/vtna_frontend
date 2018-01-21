@@ -13,6 +13,7 @@ import plotly
 import pystache
 import base64
 import imageio
+import threading
 
 import vtna.data_import
 import vtna.filter
@@ -517,6 +518,16 @@ class UIGraphDisplayManager(object):
             tooltip='Download Video',
         )
 
+        self.__export_progressbar = widgets.IntProgress(
+            value=0,
+            min=0,
+            step=1,
+            description='Exporting:',
+            bar_style='success',
+            orientation='horizontal',
+            layout=widgets.Layout(display='none')
+        )
+
         self.__apply_layout_button.on_click(self.__build_apply_layout())
         self.__download_button.on_click(self.__build_export_video())
 
@@ -647,7 +658,9 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
-        widget_list.append(widgets.HBox([self.__download_button]))
+        # TODO: Move exporting widgets into own widget box
+        widget_list.append(widgets.HBox([self.__download_button, self.__export_progressbar],
+                                        layout=widgets.Layout(padding='0.5em')))
         widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
@@ -671,8 +684,31 @@ class UIGraphDisplayManager(object):
         self.__layout_vbox.children = widget_list
 
     def __build_export_video(self) -> typ.Callable:
+        def initialize_progressbar(steps):
+            """Callback for setting max amount of progress steps and showing the progress bar"""
+            self.__export_progressbar.max = steps
+            self.__export_progressbar.value = 0
+            self.__export_progressbar.layout.display = 'inline-flex'
+
+        def increment_progress():
+            """Callback for incrementing progress by 1"""
+            self.__export_progressbar.value += 1
+
+        def progress_finished():
+            """Callback after progress is done. Shows text and hides the progress bar"""
+            self.__export_progressbar.description = 'Finished!'
+            # Hide progress bar after 2 seconds
+            threading.Timer(5.0, __hide_progressbar).start()
+
+        def __hide_progressbar():
+            self.__export_progressbar.layout.display = 'none'
+
         def export_video(_):
-            self.__video_export_manager = VideoExport(self.__figure.get_figure()['frames'])
+            self.__video_export_manager = VideoExport(
+                self.__figure.get_figure()['frames'],
+                initialize_progressbar,
+                increment_progress,
+                progress_finished)
         return export_video
 
     # This is just a propagation method so the JS code/the notebook can access
@@ -1455,19 +1491,29 @@ class TemporalGraphFigure(object):
 
 
 class VideoExport(object):
-    def __init__(self, frames: typ.Dict):
+    def __init__(self,
+                 frames: typ.Dict,
+                 initialize_progressbar: typ.Callable,
+                 increment_progress: typ.Callable,
+                 progress_finished: typ.Callable):
+        # We need the amount of frames and the counter for syncing the asynchron js writing
+        # with the closing of the writer and the progress bar
+        self.__frame_count = len(frames)
+        # There are two steps for every frame: Extracting via js and writing to gif
+        initialize_progressbar(self.__frame_count * 2)
+        self.__increment_progress = increment_progress  # type: Callable
+        self.__progress_finished = progress_finished  # type: Callable
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
-        # We need the amount of frames and the counter for syncing the asynchron js writing
-        # with the closing of the writer
-        self.__frame_count = len(frames)
+
         self.__written_frames = 0
         try:
             for i in range(self.__frame_count):
                 self.__build_frame(frames[i]['data'], i)
+                self.__increment_progress()
         except Exception as e:
-            self.__finish()
+            self.__writer.close()
             print(e)
 
     @staticmethod
@@ -1522,6 +1568,7 @@ class VideoExport(object):
             # Append binary png image to gif writer
             self.__writer.append_data(imageio.imread(img_binary))
             self.__written_frames += 1
+            self.__increment_progress()
             if self.__written_frames == self.__frame_count:
                 self.__finish()
         except Exception as e:
@@ -1530,8 +1577,8 @@ class VideoExport(object):
 
     def __finish(self):
         # Flushes and closes the writer
-        # Is an own method because it will be useful for the progress bar
         self.__writer.close()
+        self.__progress_finished()
 
 
 class LoadingIndicator(object):
