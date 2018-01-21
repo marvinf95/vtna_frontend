@@ -1461,7 +1461,7 @@ class VideoExport(object):
         ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I')
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer
         self.__frame_count = len(frames)
