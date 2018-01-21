@@ -17,4 +17,5 @@ frontend/upload/
 chromedriver
 phantomjs
 **/tmp
+**/export.gif
 
