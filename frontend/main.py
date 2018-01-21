@@ -1522,16 +1522,20 @@ class VideoExport(object):
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
     # can access this non-static method.
     def write_frame(self, img_base64):
-        # Decode base64 string to binary
-        img_binary = base64.decodebytes(img_base64)
-        # Append binary png image to gif writer
-        self.__writer.append_data(imageio.imread(img_binary))
-        self.__written_frames += 1
-        if self.__written_frames == self.__frame_count:
-            self.__finish()
+        try:
+            # Decode base64 string to binary
+            img_binary = base64.decodebytes(img_base64)
+            # Append binary png image to gif writer
+            self.__writer.append_data(imageio.imread(img_binary))
+            self.__written_frames += 1
+            if self.__written_frames == self.__frame_count:
+                self.__finish()
+        except Exception:
+            self.__writer.close()
 
     def __finish(self):
         # Flushes and closes the writer
+        # Is an own method because it will be useful for the progress bar
         self.__writer.close()
 
 
