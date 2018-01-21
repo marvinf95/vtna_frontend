@@ -1514,6 +1514,7 @@ class VideoExport(object):
                 self.__increment_progress()
         except Exception as e:
             self.__writer.close()
+            # TODO: Show as user-friendly error message
             print(e)
 
     @staticmethod
@@ -1573,6 +1574,7 @@ class VideoExport(object):
                 self.__finish()
         except Exception as e:
             self.__writer.close()
+            # TODO: Show as user-friendly error message
             print(e)
 
     def __finish(self):
