@@ -1456,9 +1456,6 @@ class TemporalGraphFigure(object):
 
 class VideoExport(object):
     def __init__(self, frames: typ.Dict):
-        # Already include the modified plotly js library here.
-        # Never do this in a loop
-        ipydisplay.display(ipydisplay.HTML('<script src="js/plotly-c.js"></script>'))
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
@@ -1476,13 +1473,17 @@ class VideoExport(object):
     @staticmethod
     def __build_frame(data, index):
         figure = {'layout': {}, 'data': data}
+        # First we build the layout of the plot that will be exported
         # TODO: Layout should be at least partially dependent/copied from original plotly layout
         figure['layout']['width'] = 500
         figure['layout']['height'] = 500
         figure['layout']['showlegend'] = False
         # Make plot more compact
         figure['layout']['margin'] = plotly.graph_objs.Margin(
-            t=20,
+            t=30,
+            r=30,
+            b=30,
+            l=30,
             pad=0
         )
         figure['layout']['yaxis'] = {
@@ -1499,18 +1500,8 @@ class VideoExport(object):
         ipydisplay.display(ipydisplay.HTML(
             # First we remove the previous plot div, if existing, for not
             # causing memory leaks and easier access.
-            # Note that we actually remove the parent, to prevent ugly whitespaces in
-            # the notebook which would also still contain js.
-            '''
-            <script>
-            var tmpPlot = document.getElementById("tmp-plotly-plot''' + str(index - 1) + '''");
-                    if(tmpPlot != null) {
-                        tmpPlot.parentElement.parentElement.removeChild(tmpPlot.parentElement);
-                        // Probably not necessary I guess?
-                        delete tmpPlot;
-                    }
-                    </script>
-                    ''' +
+            # See export.js for function implementation
+            f'<script>removePlot({str(index-1)});</script>' +
             # Wrap our plot with a hidden div
             '<div hidden id="tmp-plotly-plot' + str(index) + '">' +
             # plot() returns the html div with the plot itself.
@@ -1518,31 +1509,7 @@ class VideoExport(object):
             # anyways because it won't work without the customization
             plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
             # Execute the javascript that extracts the image
-            + '''
-                    </div>
-                    <script>
-                    // This is just a callback construct, so python output and errors 
-                    // (stdout + stderr) on executing a kernel command can be 
-                    // viewed in a browser console.
-                    function handle_output(data){
-                        console.log(data.content);
-                    }
-                    var callbacks = {
-                            iopub : {
-                                 output : handle_output,
-                        }
-                    }
-                    // Returns a Promise
-                    // We choose the second element with that class, because the first one
-                    // is our real plot
-                    Plotly.toImage(document.getElementsByClassName("plotly-graph-div")[1])
-                        .then(function(imgData) {
-                            // Remove data URL prefix and call main's callback method
-                            var command = "display_manager.write_export_frame(b'" + imgData.replace("data:image/png;base64,", "") + "')";
-                            IPython.notebook.kernel.execute(command, callbacks);
-                    });
-                    </script>
-                    '''
+            + '</div><script>extractPlotlyImage();</script>'
         ))
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
