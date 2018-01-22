@@ -540,7 +540,6 @@ class UIGraphDisplayManager(object):
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
                             metadata: vtna.data_import.MetadataTable,
                             granularity: int,
-                            queries_manager: 'UIAttributeQueriesManager',
                             selected_measures: typ.Dict[str, bool],
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
@@ -554,11 +553,14 @@ class UIGraphDisplayManager(object):
                                             edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
-        self.__queries_manager = queries_manager
-        self.__queries_manager.register_graph_display_manager(self)
 
         self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph, [m for m, selected in selected_measures.items() if selected])
         self.__node_measure_manager.add_all_to_graph()
+
+    def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
+        """Initializies the Query Manager."""
+        self.__queries_manager = queries_manager
+        self.__queries_manager.register_graph_display_manager(self)
 
     def display_graph(self):
         with self.__display_output:
@@ -692,19 +694,18 @@ class UIGraphDisplayManager(object):
 
 
 class UIAttributeQueriesManager(object):
-    def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
+    def __init__(self, attribute_info: typ.Dict, queries_main_vbox: widgets.VBox,
                  filter_box_layout: widgets.Layout, query_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
-        self.__metadata = transform_metadata_to_queries_format(metadata)
-        self.__metadata_table = metadata
+        self.__attribute_info = attribute_info
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
 
         self.__attributes_dropdown = None  # type: widgets.Dropdown
         self.__nominal_value_dropdown = None  # type: widgets.Dropdown
-        self.__interval_value_int_slider = None  # type: widgets.Dropdown
+        self.__interval_value_float_slider = None  # type: widgets.Dropdown
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
         self.__color_picker = None  # type: widgets.ColorPicker
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
@@ -723,7 +724,7 @@ class UIAttributeQueriesManager(object):
         self.__highlight_queries = dict()  # type: typ.Dict
         self.__active_highlight_queries = list()  # type: typ.List[int]
 
-        if self.__metadata != {}:
+        if self.__attribute_info != {}:
             self.__build_queries_menu()
 
             self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
@@ -733,8 +734,8 @@ class UIAttributeQueriesManager(object):
             self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
-        attributes = list(self.__metadata.keys())
-        initial_attribute = self.__metadata[attributes[0]]
+        attributes = list(self.__attribute_info.keys())
+        initial_attribute = self.__attribute_info[attributes[0]]
         # Attribute drop down
         self.__attributes_dropdown = widgets.Dropdown(
             options=attributes,
@@ -744,30 +745,30 @@ class UIAttributeQueriesManager(object):
         )
         # Nominal dropdown
         self.__nominal_value_dropdown = widgets.Dropdown(
-            disabled=True if initial_attribute['type'] != 'N' else False,
-            options=initial_attribute['values'] if initial_attribute['type'] == 'N' else ['Range'],
-            value=initial_attribute['values'][0] if initial_attribute['type'] == 'N' else 'Range',
+            disabled=True if initial_attribute['measurement_type'] != 'N' else False,
+            options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'N' else ['Range'],
+            value=initial_attribute['categories'][0] if initial_attribute['measurement_type'] == 'N' else 'Range',
             description='Value:',
         )
         # Interval slider
-        self.__interval_value_int_slider = widgets.IntRangeSlider(
+        self.__interval_value_float_slider = widgets.FloatRangeSlider(
             description='Value:',
-            disabled=True if initial_attribute['type'] != 'I' else False,
-            value=[35, 52],
-            min=16,
-            max=65,
-            step=1,
+            disabled=True if initial_attribute['measurement_type'] != 'I' else False,
+            value=initial_attribute['range'] if initial_attribute['measurement_type'] == 'I' else (0, 0),
+            min=initial_attribute['range'][0] if initial_attribute['measurement_type'] == 'I' else 0,
+            max=initial_attribute['range'][1] if initial_attribute['measurement_type'] == 'I' else 1,
+            step=0.1,
             orientation='horizontal',
-            readout=False if initial_attribute['type'] != 'I' else True,
-            readout_format='d',
+            readout=False if initial_attribute['measurement_type'] != 'I' else True,
+            readout_format='.1f',
             layout=widgets.Layout(width='99%')
         )
         # Ordinal slider
         self.__ordinal_value_selection_range_slider = widgets.SelectionRangeSlider(
             description='Value:',
-            options=initial_attribute['values'] if initial_attribute['type'] == 'O' else ['N/A'],
-            index=(0, len(initial_attribute['values']) - 1) if initial_attribute['type'] == 'O' else (0, 0),
-            disabled=True if initial_attribute['type'] != 'O' else False,
+            options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'O' else ['N/A'],
+            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (0, 0),
+            disabled=True if initial_attribute['measurement_type'] != 'O' else False,
             layout=widgets.Layout(width='99%')
         )
         # Colorpicker
@@ -809,14 +810,14 @@ class UIAttributeQueriesManager(object):
             value='NEW'
         )
         # display inputs depending on current initial data type
-        if initial_attribute['type'] == 'O':
+        if initial_attribute['measurement_type'] == 'O':
             self.__nominal_value_dropdown.layout.display = 'none'
-            self.__interval_value_int_slider.layout.display = 'none'
-        elif initial_attribute['type'] == 'I':
+            self.__interval_value_float_slider.layout.display = 'none'
+        elif initial_attribute['measurement_type'] == 'I':
             self.__nominal_value_dropdown.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
         else:
-            self.__interval_value_int_slider.layout.display = 'none'
+            self.__interval_value_float_slider.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
 
         # Msg for colorpicker
@@ -848,7 +849,7 @@ class UIAttributeQueriesManager(object):
                                          layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
         # form BOX
         queries_form_vbox = widgets.VBox(
-            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
+            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
              self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
              main_toolbar_hbox])
         # Query output BOX
@@ -860,40 +861,41 @@ class UIAttributeQueriesManager(object):
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
             if change['type'] == 'change' and change['name'] == 'value':
-                selected_attribute = self.__metadata[self.__attributes_dropdown.value]
-                if selected_attribute['type'] == 'N':  # Selected attribute is nominal
+                selected_attribute = self.__attribute_info[self.__attributes_dropdown.value]
+                if selected_attribute['measurement_type'] == 'N':  # Selected attribute is nominal
                     # Activate nominal value dropdown
-                    self.__nominal_value_dropdown.options = selected_attribute['values']
-                    self.__nominal_value_dropdown.value = selected_attribute['values'][0]
+                    self.__nominal_value_dropdown.options = selected_attribute['categories']
+                    self.__nominal_value_dropdown.value = selected_attribute['categories'][0]
                     self.__nominal_value_dropdown.disabled = False
                     self.__nominal_value_dropdown.layout.display = 'inline-flex'
                     # Hide interval and ordinal value sliders
                     # TODO: Not sure about these two lines, commented them out for now
                     # self.__interval_value_int_slider.disabled = True
                     # self.__interval_value_int_slider.readout = False
-                    self.__interval_value_int_slider.layout.display = 'none'
+                    self.__interval_value_float_slider.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
-                elif selected_attribute['type'] == 'I':  # Selected attribute is interval
+                elif selected_attribute['measurement_type'] == 'I':  # Selected attribute is interval
                     # Activate interval value slider
-                    self.__interval_value_int_slider.disabled = False
-                    self.__interval_value_int_slider.readout = True
-                    self.__interval_value_int_slider.value = selected_attribute['values']
-                    self.__interval_value_int_slider.min = min(selected_attribute['values'])
-                    self.__interval_value_int_slider.max = max(selected_attribute['values'])
-                    self.__interval_value_int_slider.layout.display = 'inline-flex'
+                    self.__interval_value_float_slider.disabled = False
+                    self.__interval_value_float_slider.readout = True
+                    print(selected_attribute['range'])
+                    self.__interval_value_float_slider.value = list(selected_attribute['range'])
+                    self.__interval_value_float_slider.min = selected_attribute['range'][0]
+                    self.__interval_value_float_slider.max = selected_attribute['range'][1]
+                    self.__interval_value_float_slider.layout.display = 'inline-flex'
                     # Hide nominal dropdown and ordinal slider
                     self.__nominal_value_dropdown.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
-                elif selected_attribute['type'] == 'O':  # Selected attribute is ordinal
+                elif selected_attribute['measurement_type'] == 'O':  # Selected attribute is ordinal
                     # Activate ordinal value slider
                     self.__ordinal_value_selection_range_slider.disabled = False
                     self.__ordinal_value_selection_range_slider.readout = True
-                    self.__ordinal_value_selection_range_slider.options = selected_attribute['values']
-                    self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute) - 1)
+                    self.__ordinal_value_selection_range_slider.options = selected_attribute['categories']
+                    self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute['categories']) - 1)
                     self.__ordinal_value_selection_range_slider.layout.display = 'inline-flex'
                     # Hide nominal dropdown and interval slider
                     self.__nominal_value_dropdown.layout.display = 'none'
-                    self.__interval_value_int_slider.layout.display = 'none'
+                    self.__interval_value_float_slider.layout.display = 'none'
 
         return on_change
 
@@ -941,7 +943,7 @@ class UIAttributeQueriesManager(object):
             clause_ctx['operator_new'] = clause['operator'] == 'NEW'
             clause_ctx['operator'] = clause['operator']
             clause_ctx['attribute_name'] = clause['value'][0]
-            if self.__metadata[clause['value'][0]]['type'] == 'N':
+            if self.__attribute_info[clause['value'][0]]['measurement_type'] == 'N':
                 clause_ctx['is_nominal'] = True
                 clause_ctx['value'] = clause['value'][1]
             else:
@@ -955,9 +957,9 @@ class UIAttributeQueriesManager(object):
         return html_string
 
     def __fetch_current_value(self) -> typ.Any:
-        attribute_type = self.__metadata[self.__attributes_dropdown.value]['type']
+        attribute_type = self.__attribute_info[self.__attributes_dropdown.value]['measurement_type']
         return {'N': self.__nominal_value_dropdown.value,  # string
-                'I': self.__interval_value_int_slider.value,  # tuple of 2 ints
+                'I': self.__interval_value_float_slider.value,  # tuple of 2 ints
                 'O': self.__ordinal_value_selection_range_slider.value  # tuple of 2 strings
                 }[attribute_type]
 
@@ -1114,13 +1116,13 @@ class UIAttributeQueriesManager(object):
     def get_node_filter(self) -> vtna.filter.NodeFilter:
         active_queries = dict((idx, query) for idx, query in self.__filter_queries.items()
                               if idx in self.__active_filter_queries)
-        node_filter = transform_queries_to_filter(active_queries, self.__metadata_table)
+        node_filter = transform_queries_to_filter(active_queries, self.__attribute_info)
         return node_filter
 
     def get_node_colors(self, temp_graph: vtna.graph.TemporalGraph, default_color: str) -> typ.Dict[int, str]:
         active_queries = dict((idx, query) for idx, query in self.__highlight_queries.items()
                               if idx in self.__active_highlight_queries)
-        node_colors = transform_queries_to_color_mapping(active_queries, self.__metadata_table, temp_graph,
+        node_colors = transform_queries_to_color_mapping(active_queries, self.__attribute_info, temp_graph,
                                                          default_color)
         return node_colors
 
@@ -1134,21 +1136,10 @@ class UIAttributeQueriesManager(object):
             manager.notify(self)
 
 
-def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
-    if metadata is None:
-        result = dict()
-    else:
-        result = dict((name,
-                       {'type': 'O' if metadata.is_ordered(name) else 'N',
-                        'values': metadata.get_categories(name)})
-                      for name in metadata.get_attribute_names())
-    return result
-
-
-def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable) -> vtna.filter.NodeFilter:
+def transform_queries_to_filter(queries: typ.Dict, attribute_info: typ.Dict) -> vtna.filter.NodeFilter:
     clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
     for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
-        clause = build_clause(raw_clause, metadata)
+        clause = build_clause(raw_clause, attribute_info)
         clauses.append(clause)
     result_filter = None
     for i, clause in enumerate(clauses):
@@ -1161,7 +1152,7 @@ def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.Me
     return result_filter
 
 
-def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_import.MetadataTable,
+def transform_queries_to_color_mapping(queries: typ.Dict, attribute_info: typ.Dict,
                                        temp_graph: vtna.graph.TemporalGraph, default_color: str) \
         -> typ.Dict[int, str]:
     # Init all nodes with the default color
@@ -1169,18 +1160,18 @@ def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_im
     for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[0]), reverse=True)):
         raw_clause = raw_clauses['clauses']
         color = raw_clauses['color']
-        clause = build_clause(raw_clause, metadata)
+        clause = build_clause(raw_clause, attribute_info)
         nodes_to_color = clause(temp_graph.get_nodes())
         for node_id in map(lambda n: n.get_id(), nodes_to_color):
             colors[node_id] = color
     return colors
 
 
-def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+def build_clause(raw_clause: typ.Dict, attribute_info: typ.Dict) \
         -> vtna.filter.NodeFilter:
     clause = None
     for raw_predicate in map(lambda t: t[1], sorted(raw_clause.items(), key=lambda t: int(t[0]))):
-        predicate = build_predicate(raw_predicate, metadata)
+        predicate = build_predicate(raw_predicate, attribute_info)
         node_filter = vtna.filter.NodeFilter(predicate)
         # Case distinction for different operators:
         op = raw_predicate['operator']
@@ -1202,18 +1193,22 @@ def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable)
     return clause
 
 
-def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
         -> typ.Callable[[vtna.graph.TemporalNode], bool]:
     # TODO: Currently assumes only string type values. More case distinctions needed for more complex types.
     # build_predicate assumes correctness of the input in regards to measure type assumptions.
     # e.g. range type queries will only be made for truly ordinal or interval values.
     name, value = raw_predicate['value']
-    if isinstance(value, (list, tuple)):  # Range type
-        order = metadata.get_categories(name)
+    if attribute_info[name]['measurement_type'] == 'O':
+        order = attribute_info[name]['categories']
         lower_bound = vtna.filter.ordinal_attribute_greater_than_equal(name, value[0], order)
         inv_upper_bound = vtna.filter.ordinal_attribute_greater_than(name, value[1], order)
         pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
-    else:  # Equality
+    elif attribute_info[name]['measurement_type'] == 'I':
+        lower_bound = vtna.filter.interval_attribute_greater_than_equal(name, value[0])
+        inv_upper_bound = vtna.filter.interval_attribute_greater_than(name, value[1])
+        pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
+    elif attribute_info[name]['measurement_type'] == 'N':  # Equality
         pred = vtna.filter.categorical_attribute_equal(name, value)
     return pred
 
