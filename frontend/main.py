@@ -708,7 +708,7 @@ class UIAttributeQueriesManager(object):
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
         self.__color_picker = None  # type: widgets.ColorPicker
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
-        self.__add_new_filter_button = None  # type: widgets.Button
+        self.__add_new_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
         self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
         self.__queries_output_box = None  # type: widgets.Box
@@ -729,7 +729,7 @@ class UIAttributeQueriesManager(object):
             self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
             self.__attributes_dropdown.observe(self.__build_on_attribute_change())
             self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
-            self.__add_new_filter_button.on_click(self.__build_add_query())
+            self.__add_new_query_button.on_click(self.__build_add_query())
             self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
@@ -778,7 +778,7 @@ class UIAttributeQueriesManager(object):
             disabled=False
         )
         # Add new filter
-        self.__add_new_filter_button = widgets.Button(
+        self.__add_new_query_button = widgets.Button(
             disabled=False,
             description='Add new query',
             button_style='success',
@@ -827,7 +827,7 @@ class UIAttributeQueriesManager(object):
         self.__add_new_clause_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
                   "to add a clause to a query</span>")
-        # Hiding msg untill 'operation' != New/Not
+        # Hiding msg until 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
 
         # Apply queries to graph button
@@ -839,13 +839,13 @@ class UIAttributeQueriesManager(object):
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
-        # Main toolbar : Operator, Add
-        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
-                                          self.__add_new_clause_msg_html],
-                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
         queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
                                              self.__apply_to_graph_button])
+        # Main toolbar : Operator Dropdown, Add Query Button
+        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button,
+                                          self.__add_new_clause_msg_html],
+                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
@@ -853,6 +853,7 @@ class UIAttributeQueriesManager(object):
              main_toolbar_hbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
+
         # Put created components into correct container
         self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
 
@@ -902,10 +903,10 @@ class UIAttributeQueriesManager(object):
                 new_operator = self.__boolean_combination_dropdown.value
                 ipydisplay.display(ipydisplay.Javascript(f"je.setOperator('{new_operator}').adjustButtons();"))
                 if new_operator in ['NEW', 'NOT']:
-                    self.__add_new_filter_button.disabled = False
+                    self.__add_new_query_button.disabled = False
                     self.__add_new_clause_msg_html.layout.visibility = 'hidden'
                 else:
-                    self.__add_new_filter_button.disabled = True
+                    self.__add_new_query_button.disabled = True
                     self.__add_new_clause_msg_html.layout.visibility = 'visible'
 
         return on_change
