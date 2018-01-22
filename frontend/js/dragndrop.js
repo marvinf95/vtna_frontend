@@ -30,18 +30,17 @@ var enableSorting = function (ul_list, id) {
         updateDictCommand += "]";
         kernel.execute(updateDictCommand, pythonCallback);
         // Update metadata order after every change
-        kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)", pythonCallback);
+        kernel.execute("upload_manager.set_attribute_order(order_dict)", pythonCallback);
 
     });
-    kernel.execute("order_enabled[" + id + "] = True", pythonCallback);
-    kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)", pythonCallback);
+    //kernel.execute("order_enabled[" + id + "] = True", pythonCallback);
+    kernel.execute("upload_manager.toggle_order_enabled(id_=" + id + ", enabled=True)", pythonCallback);
 };
 
 var disableSorting = function (ul_list, id) {
     // Removes sortability listeners
     sortable(ul_list, 'destroy');
-    kernel.execute("order_enabled[" + id + "] = False", pythonCallback);
-    kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)", pythonCallback);
+    kernel.execute("upload_manager.toggle_order_enabled(id_=" + id + ", enabled=False)", pythonCallback);
 };
 
 function toggleSortable(checkbox) {

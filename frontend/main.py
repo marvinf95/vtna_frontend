@@ -92,16 +92,23 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]], order_enabled: typ.Dict[int, bool]):
-        # Preserve entries that were initialized with False
-        self.__order_enabled.update(order_enabled)
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]]):
         # Iterate over enabled attributes only
-        for attribute_id in [i for (i, e) in order_enabled.items() if e]:
+        for attribute_id in [i for (i, e) in self.__order_enabled.items() if e]:
             # On enabling ordinal, no attribute_order list is created, so we have
             # to check first if we have to do anything at all
             if attribute_id in order_dict:
                 attribute_name = self.__metadata.get_attribute_names()[attribute_id]
                 self.__metadata.order_categories(attribute_name, order_dict[attribute_id])
+
+    def toggle_order_enabled(self, id_: int, enabled: bool):
+        self.__order_enabled[id_] = enabled
+        attribute_name = self.__metadata.get_attribute_names()[id_]
+        if enabled:
+            # Set ordinal by ordering in default order
+            self.__metadata.order_categories(attribute_name, self.__metadata.get_categories(attribute_name))
+        else:
+            self.__metadata.remove_order(attribute_name)
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
