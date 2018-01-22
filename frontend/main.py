@@ -90,19 +90,14 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
-        for attribute_id, enabled in order_enabled.items():
-            if not enabled:
-                continue
-            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]], order_enabled: typ.Dict[int, bool]):
+        # Iterate over enabled attributes only
+        for attribute_id in [i for (i, e) in order_enabled.items() if e]:
+            # On enabling ordinal, no attribute_order list is created, so we have
+            # to check first if we have to do anything at all
             if attribute_id in order_dict:
-                attribute_order = order_dict[attribute_id]
-            else:
-                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
-                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
-            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in
-                     sorted(attribute_order.keys())]
-            self.__metadata.order_categories(attribute_name, order)
+                attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+                self.__metadata.order_categories(attribute_name, order_dict[attribute_id])
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
@@ -379,7 +374,7 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         list_width = max(map(len, category))
         # list of lis for every attribute category
         # TODO: Make width work to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in
+        li_list = [f'<li width="{list_width}em">{category[element_id]}</li>' for element_id in
                    range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener

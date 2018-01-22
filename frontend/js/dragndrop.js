@@ -10,16 +10,18 @@ var enableSorting = function (ul_list, id) {
         */
         var orderList = e.detail.newEndList;
         // Assign values to python dictionary
-        var pythonCommand = "order_dict[" + id + "] = {";
+        var updateDictCommand = "order_dict[" + id + "] = [";
         for (var i = 0; i < orderList.length; i++) {
-            pythonCommand += i + ": " + orderList[i].value;
+            updateDictCommand += "'" + orderList[i].textContent + "'";
             // Append comma if not last dictionary entry
             if (i < orderList.length - 1) {
-                pythonCommand += ", ";
+                updateDictCommand += ", ";
             }
         }
-        pythonCommand += "}"
-        kernel.execute(pythonCommand);
+        updateDictCommand += "]";
+        kernel.execute(updateDictCommand);
+        // Update metadata order after every change
+        kernel.execute("upload_manager.set_attribute_order(order_dict, order_enabled)");
 
     });
     kernel.execute("order_enabled[" + id + "] = True");
