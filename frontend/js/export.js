@@ -1,4 +1,14 @@
-require(["plotly.js"])
+// This is just a callback construct, so python output and errors
+// (stdout + stderr) on executing a kernel command can be
+// viewed in a browser console.
+function handle_output(data){
+    console.log(data.content);
+}
+var callbacks = {
+        iopub : {
+             output : handle_output,
+    }
+}
 
 var removePlot = function(id) {
     var tmpPlot = document.getElementById("tmp-plotly-plot" + id);
@@ -12,17 +22,6 @@ var removePlot = function(id) {
 }
 
 var extractPlotlyImage = function () {
-    // This is just a callback construct, so python output and errors
-    // (stdout + stderr) on executing a kernel command can be
-    // viewed in a browser console.
-    function handle_output(data){
-        console.log(data.content);
-    }
-    var callbacks = {
-            iopub : {
-                 output : handle_output,
-        }
-    }
     // Returns a Promise
     // We choose the second element with that class, because the first one
     // is our real plot
