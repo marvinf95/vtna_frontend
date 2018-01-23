@@ -1486,8 +1486,8 @@ class TemporalGraphFigure(object):
 
         node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
 
-        for i, graph in enumerate(self.__temp_graph):
-            frame = {'data': [], 'name': str(i)}
+        for timestep, graph in enumerate(self.__temp_graph):
+            frame = {'data': [], 'name': str(timestep)}
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
@@ -1519,10 +1519,10 @@ class TemporalGraphFigure(object):
                 node1, node2 = edge.get_incident_nodes()
                 # Only display edges of visible nodes
                 if node1 in node_ids and node2 in node_ids:
-                    x1, y1 = self.__layout[i][node1]
-                    x2, y2 = self.__layout[i][node2]
-                    self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
-                    self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
+                    x1, y1 = self.__layout[timestep][node1]
+                    x2, y2 = self.__layout[timestep][node2]
+                    self.__figure_data['frames'][timestep]['data'][0]['x'].extend([x1, x2, None])
+                    self.__figure_data['frames'][timestep]['data'][0]['y'].extend([y1, y2, None])
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
@@ -1532,31 +1532,42 @@ class TemporalGraphFigure(object):
                 colors = [self.__color_map[node_id] for node_id in used_node_ids]
             else:
                 colors = self.__color_map
-            self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
+            self.__figure_data['frames'][timestep]['data'][1]['marker']['color'] = colors
 
             # Add nodes to data
-            for node in used_node_ids:
-                x, y = self.__layout[i][node]
-                self.__figure_data['frames'][i]['data'][1]['x'].append(x)
-                self.__figure_data['frames'][i]['data'][1]['y'].append(y)
+            for node_id in used_node_ids:
+                x, y = self.__layout[timestep][node_id]
+                self.__figure_data['frames'][timestep]['data'][1]['x'].append(x)
+                self.__figure_data['frames'][timestep]['data'][1]['y'].append(y)
+
                 # Add attribute info for hovering
-                attributes = []
-                # TODO: Also add local attributes
-                for attribute_name in [n for (n, i) in self.__temp_graph.get_attributes_info().items() if i['scope'] == 'global']:
-                    attribute_value = self.__temp_graph.get_node(node).get_global_attribute(attribute_name)
-                    attributes.append(f"<br>{attribute_name}: {attribute_value}")
-                self.__figure_data['frames'][i]['data'][1]['text'].append(''.join(attributes))
+                info_text = []
+                # Add global attributes info
+                global_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'global']
+                if len(global_attribute_names) > 0:
+                    info_text.append('<b style="color:#91dfff">Global:</b><br>')
+                for attribute_name in global_attribute_names:
+                    attribute_value = self.__temp_graph.get_node(node_id).get_global_attribute(attribute_name)
+                    info_text.append(f"{attribute_name}: {attribute_value}<br>")
+                # Add local attributes info
+                local_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'local']
+                if len(local_attribute_names) > 0:
+                    info_text.append('<b style="color:#91dfff">Local:</b><br>')
+                for attribute_name in local_attribute_names:
+                    attribute_value = self.__temp_graph.get_node(node_id).get_local_attribute(attribute_name, timestep)
+                    info_text.append(f"{attribute_name}: {attribute_value}<br>")
+                self.__figure_data['frames'][timestep]['data'][1]['text'].append(''.join(info_text))
 
             slider_step = {
                 'args': [
-                    [i],
+                    [timestep],
                     {
                         'frame': {'duration': 300, 'redraw': False},
                         'mode': 'immediate',
                         'transition': {'duration': 300}
                     }
                 ],
-                'label': str(i),
+                'label': str(timestep),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
