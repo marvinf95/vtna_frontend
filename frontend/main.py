@@ -1734,7 +1734,7 @@ class UIStatisticsManager(object):
                  node_detailed_view_vbox: widgets.VBox,
                  graph_summary_template_path: str
                  ):
-        self.__graph_summary_html = widgets.HTML()
+        self.__graph_summary_html = widgets.HTML(layout=widgets.Layout(width='100%'))
         graph_summary_hbox.children = [self.__graph_summary_html]
         self.__node_summary_html = widgets.HTML()
         node_summary_hbox.children = [self.__node_summary_html]
@@ -1752,5 +1752,16 @@ class UIStatisticsManager(object):
             return
         total_nodes = len(self.__temp_graph.get_nodes())
         total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
-        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes, 'total_edges': total_edges})
+        is_filtering = True
+        is_highlighting = False
+        avg_degree = 0
+        diameter = 0
+        avg_clustering_coefficient = 0
+        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes,
+                                                               'total_edges': total_edges,
+                                                               'is_filtering': is_filtering,
+                                                               'is_highlighting': is_highlighting,
+                                                               'avg_degree': avg_degree,
+                                                               'diameter' :diameter,
+                                                               'avg_clustering_coefficient': avg_clustering_coefficient})
         self.__graph_summary_html.value = html
