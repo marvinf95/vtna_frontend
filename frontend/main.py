@@ -1,5 +1,5 @@
-import enum
 import os
+import sys
 import re
 import typing as typ
 import enum
@@ -956,10 +956,11 @@ class UIAttributeQueriesManager(object):
                     # Activate interval value slider
                     self.__interval_value_float_slider.disabled = False
                     self.__interval_value_float_slider.readout = True
-                    print(selected_attribute['range'])
-                    self.__interval_value_float_slider.value = list(selected_attribute['range'])
+                    # ipywidgets won't let us assign min > max, so we have to do this:
+                    self.__interval_value_float_slider.max = sys.maxsize
                     self.__interval_value_float_slider.min = selected_attribute['range'][0]
                     self.__interval_value_float_slider.max = selected_attribute['range'][1]
+                    self.__interval_value_float_slider.value = selected_attribute['range']
                     self.__interval_value_float_slider.layout.display = 'inline-flex'
                     # Hide nominal dropdown and ordinal slider
                     self.__nominal_value_dropdown.layout.display = 'none'
@@ -1274,6 +1275,7 @@ def build_clause(raw_clause: typ.Dict, attribute_info: typ.Dict) \
 def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
         -> typ.Callable[[vtna.graph.TemporalNode], bool]:
     # TODO: Currently assumes only string type values. More case distinctions needed for more complex types.
+    # TODO: Can ordinal or nominal attributes be local as well?
     # build_predicate assumes correctness of the input in regards to measure type assumptions.
     # e.g. range type queries will only be made for truly ordinal or interval values.
     name, value = raw_predicate['value']
