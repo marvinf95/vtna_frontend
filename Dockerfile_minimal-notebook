@@ -9,20 +9,24 @@ RUN apt-get update
 ## User from the minimal notebook
 USER jovyan
 
+## Change to the users home as workdir
 WORKDIR /home/jovyan
 
+## Copy data for vtna package into the container
 COPY vtna ./vtna
+## Copy data for frontend into the container
 COPY frontend ./frontend
-RUN pip install --no-cache-dir -r frontend/requirements.txt
-#RUN pip install --no-cache-dir -r vtna/requirements.txt
-RUN pip install vtna/
 
-USER root
+## Install required packages for the frontend
+RUN pip install --no-cache-dir -r frontend/requirements.txt --user
+## Install the vtna package with its dependencies
+RUN pip install vtna/ --user
 
-RUN jupyter nbextension enable --py widgetsnbextension && jupyter nbextension install --py fileupload && jupyter nbextension enable --py fileupload
+## Add required jupyter extensions for the notebook
+RUN jupyter nbextension enable --py widgetsnbextension --user && jupyter nbextension install --py fileupload --user && jupyter nbextension enable --py fileupload --user
 
-USER jovyan
-
+## Application is exposed on port 8888
 EXPOSE 8888
 
+## Start notebook
 CMD jupyter notebook --ip 0.0.0.0 --no-browser frontend/vtna.ipynb

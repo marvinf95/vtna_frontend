@@ -5,7 +5,6 @@ USER root
 
 # Update system and add required packages
 RUN apt-get -y update && apt-get -y upgrade
-#RUN apt-get  add --no-cache pkgconfig freetype-dev libpng-dev gfortran gcc build-base openblas-dev
 
 # Create user named vtna
 RUN adduser --system --uid 1000 vtna 
