@@ -581,6 +581,10 @@ class UIGraphDisplayManager(object):
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
+
+        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph, [m for m, selected in selected_measures.items() if selected])
+        self.__node_measure_manager.add_all_to_graph()
+
         self.__figure = TemporalGraphFigure(temp_graph=self.__temp_graph,
                                             layout=layout,
                                             display_size=self.__display_size,
@@ -590,9 +594,6 @@ class UIGraphDisplayManager(object):
                                             edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
-
-        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph, [m for m, selected in selected_measures.items() if selected])
-        self.__node_measure_manager.add_all_to_graph()
 
     def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
         """Initializies the Query Manager."""
@@ -1513,6 +1514,7 @@ class TemporalGraphFigure(object):
 
             used_node_ids = set()
 
+            # Add edges to data
             for edge in graph.get_edges():
                 node1, node2 = edge.get_incident_nodes()
                 # Only display edges of visible nodes
@@ -1532,10 +1534,18 @@ class TemporalGraphFigure(object):
                 colors = self.__color_map
             self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
 
+            # Add nodes to data
             for node in used_node_ids:
                 x, y = self.__layout[i][node]
                 self.__figure_data['frames'][i]['data'][1]['x'].append(x)
                 self.__figure_data['frames'][i]['data'][1]['y'].append(y)
+                # Add attribute info for hovering
+                attributes = []
+                # TODO: Also add local attributes
+                for attribute_name in [n for (n, i) in self.__temp_graph.get_attributes_info().items() if i['scope'] == 'global']:
+                    attribute_value = self.__temp_graph.get_node(node).get_global_attribute(attribute_name)
+                    attributes.append(f"<br>{attribute_name}: {attribute_value}")
+                self.__figure_data['frames'][i]['data'][1]['text'].append(''.join(attributes))
 
             slider_step = {
                 'args': [
