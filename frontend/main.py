@@ -1557,7 +1557,7 @@ class VideoExport(object):
             # Then we remove the div again, for not
             # causing memory leaks and easier access.
             # See export.js for function implementation
-            + f'<script>removePlot({str(index-1)});</script>'
+            + f'<script>removePlot({str(index)});</script>'
         ))
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
