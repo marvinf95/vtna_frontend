@@ -1,17 +1,21 @@
-import datetime
+import enum
 import os
+import re
 import typing as typ
 import enum
 import collections
 import urllib
 import urllib.error
 
-import fileupload
 import IPython.display as ipydisplay
-from ipywidgets import widgets
+import fileupload
 import matplotlib.pyplot as plt
 import plotly.graph_objs
+import plotly
 import pystache
+import base64
+import imageio
+import threading
 
 import vtna.data_import
 import vtna.filter
@@ -20,6 +24,8 @@ import vtna.node_measure
 import vtna.layout
 import vtna.statistics
 import vtna.utility
+from ipywidgets import widgets
+
 
 
 # Not a good solution, but "solves" the global variable problem.
@@ -82,6 +88,8 @@ class UIDataUploadManager(object):
 
         self.__measure_selection_checkboxes = None  # type: typ.Dict[str, widgets.Checkbox]
 
+        self.__order_enabled = {}  # type: Dict[int, boolean]
+
         # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
@@ -100,18 +108,23 @@ class UIDataUploadManager(object):
     def get_selected_measures(self) -> typ.Dict[str, bool]:
         return dict([(name, checkbox.value) for name, checkbox in self.__measure_selection_checkboxes.items()])
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
-        for attribute_id, enabled in order_enabled.items():
-            if not enabled:
-                continue
-            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]]):
+        # Iterate over enabled attributes only
+        for attribute_id in [i for (i, e) in self.__order_enabled.items() if e]:
+            # On enabling ordinal, no attribute_order list is created, so we have
+            # to check first if we have to do anything at all
             if attribute_id in order_dict:
-                attribute_order = order_dict[attribute_id]
-            else:
-                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
-                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
-            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in sorted(attribute_order.keys())]
-            self.__metadata.order_categories(attribute_name, order)
+                attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+                self.__metadata.order_categories(attribute_name, order_dict[attribute_id])
+
+    def toggle_order_enabled(self, id_: int, enabled: bool):
+        self.__order_enabled[id_] = enabled
+        attribute_name = self.__metadata.get_attribute_names()[id_]
+        if enabled:
+            # Set ordinal by ordering in default order
+            self.__metadata.order_categories(attribute_name, self.__metadata.get_categories(attribute_name))
+        else:
+            self.__metadata.remove_order(attribute_name)
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
@@ -207,6 +220,8 @@ class UIDataUploadManager(object):
                 elif upload_origin is self.UploadOrigin.NETWORK:
                     file = self.__metadata_data_text.value
                     self.__metadata = vtna.data_import.MetadataTable(file)
+                # Initialize orders as disabled
+                self.__order_enabled = dict([(i, False) for i in range(len(self.__metadata.get_attribute_names()))])
                 self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
@@ -262,7 +277,7 @@ class UIDataUploadManager(object):
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
-            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata))
+            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata, self.__order_enabled))
             ipydisplay.display_html(table)  # A tuple is expected as input, but then it won't work for some reason...
 
     def __open_column_config(self):
@@ -384,7 +399,7 @@ def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
 
 
-def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
+def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable, order_enabled: typ.Dict[int, bool]) -> str:
     col_names = metadata.get_attribute_names()
     categories = [metadata.get_categories(name) for name in col_names]
 
@@ -392,10 +407,10 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
     header_html = ""
     # Checkbox for toggling ordinal
     checkbox_html = """
-        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+        <label><input type="checkbox" value="{value}" onchange="toggleSortable(this)" {checked}> Ordinal</label>"""
     for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(value=i, checked="checked" if order_enabled[i] else "")}</th>'
     header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists
@@ -404,10 +419,13 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         list_width = max(map(len, category))
         # list of lis for every attribute category
         # TODO: Make width work to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in range(len(category))]
+        li_list = [f'<li width="{list_width}em">{category[element_id]}</li>' for element_id in
+                   range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener
-        ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
+        ul = '<ul class="attrlist{sortable}" id="attr_list{id}">{lis}</ul>'
+        cat_id = categories.index(category)
+        ul = ul.format(sortable=" sortlist" if order_enabled[cat_id] else "", id=cat_id, lis=''.join(li_list))
         # Surround with td that aligns text at the top, otherwise it would be centered
         ul = f'<td style="vertical-align:top">{ul}</td>'
         body_html += ul
@@ -463,6 +481,7 @@ class UIGraphDisplayManager(object):
         self.__node_measure_manager = None  # type: NodeMeasuresManager
 
         self.__figure = None  # type: TemporalGraphFigure
+        self.__video_export_manager = None  # type: VideoExport
 
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
         self.__layout_select = widgets.Dropdown(
@@ -532,7 +551,25 @@ class UIGraphDisplayManager(object):
             tooltip='Apply Layout',
         )
 
+        self.__download_button = widgets.Button(
+            description='Download Video',
+            disabled=False,
+            button_style='primary',
+            tooltip='Download Video',
+        )
+
+        self.__export_progressbar = widgets.IntProgress(
+            value=0,
+            min=0,
+            step=1,
+            description='Exporting:',
+            bar_style='success',
+            orientation='horizontal',
+            layout=widgets.Layout(display='none')
+        )
+
         self.__apply_layout_button.on_click(self.__build_apply_layout())
+        self.__download_button.on_click(self.__build_export_video())
 
         self.__set_current_layout_widgets()
 
@@ -565,7 +602,11 @@ class UIGraphDisplayManager(object):
     def display_graph(self):
         with self.__display_output:
             ipydisplay.clear_output()
-            plotly.offline.iplot(self.__figure.get_figure(), config={})
+            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={'scrollZoom': True}, show_link=False, output_type='div')
+            pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
+            with self.__display_output:
+                ipydisplay.clear_output()
+                ipydisplay.display(ipydisplay.HTML(pl1))
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
@@ -632,6 +673,7 @@ class UIGraphDisplayManager(object):
                 self.__set_current_layout_widgets()
                 self.__layout_select.disabled = False
                 self.__apply_layout_button.disabled = False
+
         return select_layout
 
     def __compute_layout(self):
@@ -662,6 +704,9 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
+        # TODO: Move exporting widgets into own widget box
+        widget_list.append(widgets.HBox([self.__download_button, self.__export_progressbar],
+                                        layout=widgets.Layout(padding='0.5em')))
         widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
@@ -683,6 +728,39 @@ class UIGraphDisplayManager(object):
             ])
         widget_list.append(self.__layout_description_output)
         self.__layout_vbox.children = widget_list
+
+    def __build_export_video(self) -> typ.Callable:
+        def initialize_progressbar(steps):
+            """Callback for setting max amount of progress steps and showing the progress bar"""
+            self.__export_progressbar.max = steps
+            self.__export_progressbar.value = 0
+            self.__export_progressbar.layout.display = 'inline-flex'
+
+        def increment_progress():
+            """Callback for incrementing progress by 1"""
+            self.__export_progressbar.value += 1
+
+        def progress_finished():
+            """Callback after progress is done. Shows text and hides the progress bar"""
+            self.__export_progressbar.description = 'Finished!'
+            # Hide progress bar after 2 seconds
+            threading.Timer(5.0, __hide_progressbar).start()
+
+        def __hide_progressbar():
+            self.__export_progressbar.layout.display = 'none'
+
+        def export_video(_):
+            self.__video_export_manager = VideoExport(
+                self.__figure.get_figure()['frames'],
+                initialize_progressbar,
+                increment_progress,
+                progress_finished)
+        return export_video
+
+    # This is just a propagation method so the JS code/the notebook can access
+    # the non-static export manager.
+    def write_export_frame(self, img):
+        return self.__video_export_manager.write_frame(img)
 
     def __start_graph_loading(self):
         self.__loading_indicator.start()
@@ -1290,8 +1368,8 @@ class TemporalGraphFigure(object):
         }
         self.__figure_data['layout']['autosize'] = False
         # Substract approximate height of control widgets to fit in the box
-        self.__figure_data['layout']['width'] = self.__display_size[0]-20
-        self.__figure_data['layout']['height'] = self.__display_size[1]-20
+        self.__figure_data['layout']['width'] = self.__display_size[0] - 20
+        self.__figure_data['layout']['height'] = self.__display_size[1] - 20
         # Make plot more compact
         self.__figure_data['layout']['margin'] = plotly.graph_objs.Margin(
             t=20,
@@ -1501,6 +1579,97 @@ class TemporalGraphFigure(object):
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
 
 
+class VideoExport(object):
+    def __init__(self,
+                 frames: typ.Dict,
+                 initialize_progressbar: typ.Callable,
+                 increment_progress: typ.Callable,
+                 progress_finished: typ.Callable):
+        # We need the amount of frames and the counter for syncing the asynchron js writing
+        # with the closing of the writer and the progress bar
+        self.__frame_count = len(frames)
+        # There are two steps for every frame: Extracting via js and writing to gif
+        initialize_progressbar(self.__frame_count * 2)
+        self.__increment_progress = increment_progress  # type: Callable
+        self.__progress_finished = progress_finished  # type: Callable
+        # Create the writer object for creating the gif.
+        # Mode I tells the writer to prepare for multiple images.
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
+
+        self.__written_frames = 0
+        try:
+            for i in range(self.__frame_count):
+                self.__build_frame(frames[i]['data'], i)
+                self.__increment_progress()
+        except Exception as e:
+            self.__writer.close()
+            print(e)
+
+    @staticmethod
+    def __build_frame(data, index):
+        figure = {'layout': {}, 'data': data}
+        # First we build the layout of the plot that will be exported
+        # TODO: Layout should be at least partially dependent/copied from original plotly layout
+        figure['layout']['width'] = 500
+        figure['layout']['height'] = 500
+        figure['layout']['showlegend'] = False
+        # Make plot more compact
+        figure['layout']['margin'] = plotly.graph_objs.Margin(
+            t=30,
+            r=30,
+            b=30,
+            l=30,
+            pad=0
+        )
+        figure['layout']['yaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        figure['layout']['xaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        # noinspection PyTypeChecker
+        ipydisplay.display(ipydisplay.HTML(
+            # Wrap our plot with a hidden div
+            '<div hidden id="tmp-plotly-plot' + str(index) + '">'
+            # plot() returns the html div with the plot itself.
+            # Not including plotlyjs improves performance, and is necessary
+            # anyways because it won't work without the customization
+            + plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
+            # Execute the javascript that extracts the image
+            # See export.js for function implementation
+            + '</div><script>extractPlotlyImage();</script>'
+            # Then we remove the div again, for not
+            # causing memory leaks and easier access.
+            # See export.js for function implementation
+            + f'<script>removePlot({str(index-1)});</script>'
+        ))
+
+    # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
+    # can access this non-static method.
+    def write_frame(self, img_base64):
+        try:
+            # Decode base64 string to binary
+            img_binary = base64.decodebytes(img_base64)
+            # Append binary png image to gif writer
+            self.__writer.append_data(imageio.imread(img_binary))
+            self.__written_frames += 1
+            self.__increment_progress()
+            if self.__written_frames == self.__frame_count:
+                self.__finish()
+        except Exception as e:
+            self.__writer.close()
+            print(e)
+
+    def __finish(self):
+        # Flushes and closes the writer
+        self.__writer.close()
+        self.__progress_finished()
+
+
 class LoadingIndicator(object):
     loading_images = {
         'big': "images/loading.svg",
@@ -1611,6 +1780,7 @@ class UIDefaultStyleOptionsManager(object):
             self.__notify_all_graph_display_managers()
             self.__apply_changes_button.description = tmp_description
             self.__apply_changes_button.disabled = False
+
         return on_change
 
     def __notify_all_graph_display_managers(self):
@@ -1632,3 +1802,34 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_edge_width(self) -> float:
         return self.__edge_size_float_text.value
+
+
+class UIStatisticsManager(object):
+
+    def __init__(self,
+                 graph_summary_hbox: widgets.HBox,
+                 node_summary_hbox: widgets.HBox,
+                 node_search_vbox: widgets.VBox,
+                 node_detailed_view_vbox: widgets.VBox,
+                 graph_summary_template_path: str
+                 ):
+        self.__graph_summary_html = widgets.HTML()
+        graph_summary_hbox.children = [self.__graph_summary_html]
+        self.__node_summary_html = widgets.HTML()
+        node_summary_hbox.children = [self.__node_summary_html]
+        with open(graph_summary_template_path) as f:
+            self.__graph_summary_template = f.read()
+
+        self.__temp_graph = None  # type: vtna.graph.TemporalGraph
+
+    def load(self, temp_graph: vtna.graph.TemporalGraph):
+        self.__temp_graph = temp_graph
+        self.__display_graph_summary()
+
+    def __display_graph_summary(self):
+        if self.__temp_graph is None:
+            return
+        total_nodes = len(self.__temp_graph.get_nodes())
+        total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
+        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes, 'total_edges': total_edges})
+        self.__graph_summary_html.value = html
