@@ -16,6 +16,7 @@ import pystache
 import base64
 import imageio
 import threading
+import webbrowser
 
 import vtna.data_import
 import vtna.filter
@@ -744,6 +745,9 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
+            #open file in explorer
+            local_files = ipydisplay.FileLink("./export.gif")
+            webbrowser.open('file://'+ str(local_files))
             # Hide progress bar after 2 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
