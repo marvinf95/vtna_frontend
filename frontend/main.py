@@ -1605,6 +1605,7 @@ class VideoExport(object):
                 self.__increment_progress()
         except Exception as e:
             self.__writer.close()
+            # TODO: Show as user-friendly error message
             print(e)
 
     @staticmethod
@@ -1638,16 +1639,19 @@ class VideoExport(object):
             # Wrap our plot with a hidden div
             '<div hidden id="tmp-plotly-plot' + str(index) + '">'
             # plot() returns the html div with the plot itself.
-            # Not including plotlyjs improves performance, and is necessary
-            # anyways because it won't work without the customization
+            # Not including plotlyjs improves performance, and its already
+            # loaded in the notebook anyways.
             + plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
-            # Execute the javascript that extracts the image
-            # See export.js for function implementation
-            + '</div><script>extractPlotlyImage();</script>'
-            # Then we remove the div again, for not
+            # Execute the javascript that extracts the image.
+            # Then we remove above div again, for not
             # causing memory leaks and easier access.
-            # See export.js for function implementation
-            + f'<script>removePlot({str(index-1)});</script>'
+            # See export.js for function implementations.
+            + f'''
+            </div>
+            <script>
+                extractPlotlyImage(); 
+                removePlot({str(index)});
+            </script>'''
         ))
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
@@ -1664,6 +1668,7 @@ class VideoExport(object):
                 self.__finish()
         except Exception as e:
             self.__writer.close()
+            # TODO: Show as user-friendly error message
             print(e)
 
     def __finish(self):
@@ -1815,7 +1820,7 @@ class UIStatisticsManager(object):
                  node_detailed_view_vbox: widgets.VBox,
                  graph_summary_template_path: str
                  ):
-        self.__graph_summary_html = widgets.HTML()
+        self.__graph_summary_html = widgets.HTML(layout=widgets.Layout(width='100%'))
         graph_summary_hbox.children = [self.__graph_summary_html]
         self.__node_summary_html = widgets.HTML()
         node_summary_hbox.children = [self.__node_summary_html]
@@ -1833,5 +1838,16 @@ class UIStatisticsManager(object):
             return
         total_nodes = len(self.__temp_graph.get_nodes())
         total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
-        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes, 'total_edges': total_edges})
+        is_filtering = True
+        is_highlighting = False
+        avg_degree = 0
+        diameter = 0
+        avg_clustering_coefficient = 0
+        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes,
+                                                               'total_edges': total_edges,
+                                                               'is_filtering': is_filtering,
+                                                               'is_highlighting': is_highlighting,
+                                                               'avg_degree': avg_degree,
+                                                               'diameter' :diameter,
+                                                               'avg_clustering_coefficient': avg_clustering_coefficient})
         self.__graph_summary_html.value = html

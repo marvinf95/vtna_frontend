@@ -1,28 +1,39 @@
-## https://hub.docker.com/r/jupyter/minimal-notebook/
-FROM jupyter/minimal-notebook
+FROM python:3.6
 LABEL version="0.1" description="Installs the application of the VTNA project at the University Koblenz" maintainer="marvinforster@uni-koblenz.de"
 
 USER root
 
-RUN apt-get update
+# Update system and add required packages
+RUN apt-get -y update && apt-get -y upgrade
 
-## User from the minimal notebook
-USER jovyan
+# Create user named vtna
+RUN adduser --system --uid 1000 vtna 
 
-WORKDIR /home/jovyan
+# Create folder for storing the data of the application
+RUN mkdir -p /usr/src/vtna/
+WORKDIR /usr/src/vtna/
 
+# Copy the data for the package vtna
 COPY vtna ./vtna
+# Copy the data for the frontend and the jupyter notebook
 COPY frontend ./frontend
-RUN pip install --no-cache-dir -r frontend/requirements.txt
-RUN pip install --no-cache-dir -r vtna/requirements.txt
-RUN pip install vtna/
+RUN chown -R vtna:1000 /usr/src/vtna/
 
-USER root
+# Change to the created user vtna
+USER vtna
 
-RUN jupyter nbextension enable --py widgetsnbextension && jupyter nbextension install --py fileupload && jupyter nbextension enable --py fileupload
+# Install the required python packages in the home of the user
+RUN pip install --no-cache-dir -r frontend/requirements.txt --user
+RUN pip install --no-cache-dir vtna/ --user
 
-USER jovyan
+# Add the binaries from the home of the user vtna to the path
+ENV PATH="/home/vtna/.local/bin:${PATH}"
 
+# Extensions that are needed to show widgets in the notebook 
+RUN jupyter nbextension enable --py widgetsnbextension --user && jupyter nbextension install --py fileupload --user && jupyter nbextension enable --py fileupload --user
+
+# The notebook could be reached on port 8888
 EXPOSE 8888
 
+# Start the notebook in the container
 CMD jupyter notebook --ip 0.0.0.0 --no-browser frontend/vtna.ipynb
