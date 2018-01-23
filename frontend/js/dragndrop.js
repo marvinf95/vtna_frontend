@@ -1,5 +1,14 @@
 var kernel = IPython.notebook.kernel;
 
+function handlePythonOutput(data){
+        console.log(data.content);
+    }
+var pythonCallback = {
+        iopub : {
+             output : handlePythonOutput,
+    }
+}
+
 var enableSorting = function (ul_list, id) {
     sortable(ul_list, {
         forcePlaceholderSize: true
@@ -10,25 +19,28 @@ var enableSorting = function (ul_list, id) {
         */
         var orderList = e.detail.newEndList;
         // Assign values to python dictionary
-        var pythonCommand = "order_dict[" + id + "] = {";
+        var updateDictCommand = "order_dict[" + id + "] = [";
         for (var i = 0; i < orderList.length; i++) {
-            pythonCommand += i + ": " + orderList[i].value;
+            updateDictCommand += "'" + orderList[i].textContent + "'";
             // Append comma if not last dictionary entry
             if (i < orderList.length - 1) {
-                pythonCommand += ", ";
+                updateDictCommand += ", ";
             }
         }
-        pythonCommand += "}"
-        kernel.execute(pythonCommand);
+        updateDictCommand += "]";
+        kernel.execute(updateDictCommand, pythonCallback);
+        // Update metadata order after every change
+        kernel.execute("upload_manager.set_attribute_order(order_dict)", pythonCallback);
 
     });
-    kernel.execute("order_enabled[" + id + "] = True");
+    //kernel.execute("order_enabled[" + id + "] = True", pythonCallback);
+    kernel.execute("upload_manager.toggle_order_enabled(id_=" + id + ", enabled=True)", pythonCallback);
 };
 
 var disableSorting = function (ul_list, id) {
     // Removes sortability listeners
     sortable(ul_list, 'destroy');
-    kernel.execute("order_enabled[" + id + "] = False");
+    kernel.execute("upload_manager.toggle_order_enabled(id_=" + id + ", enabled=False)", pythonCallback);
 };
 
 function toggleSortable(checkbox) {

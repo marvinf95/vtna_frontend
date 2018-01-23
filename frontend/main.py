@@ -82,6 +82,8 @@ class UIDataUploadManager(object):
 
         self.__granularity = None
 
+        self.__order_enabled = {}  # type: Dict[int, boolean]
+
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
 
@@ -94,19 +96,23 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
-        for attribute_id, enabled in order_enabled.items():
-            if not enabled:
-                continue
-            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]]):
+        # Iterate over enabled attributes only
+        for attribute_id in [i for (i, e) in self.__order_enabled.items() if e]:
+            # On enabling ordinal, no attribute_order list is created, so we have
+            # to check first if we have to do anything at all
             if attribute_id in order_dict:
-                attribute_order = order_dict[attribute_id]
-            else:
-                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
-                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
-            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in
-                     sorted(attribute_order.keys())]
-            self.__metadata.order_categories(attribute_name, order)
+                attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+                self.__metadata.order_categories(attribute_name, order_dict[attribute_id])
+
+    def toggle_order_enabled(self, id_: int, enabled: bool):
+        self.__order_enabled[id_] = enabled
+        attribute_name = self.__metadata.get_attribute_names()[id_]
+        if enabled:
+            # Set ordinal by ordering in default order
+            self.__metadata.order_categories(attribute_name, self.__metadata.get_categories(attribute_name))
+        else:
+            self.__metadata.remove_order(attribute_name)
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
@@ -202,6 +208,8 @@ class UIDataUploadManager(object):
                 elif upload_origin is self.UploadOrigin.NETWORK:
                     file = self.__metadata_data_text.value
                     self.__metadata = vtna.data_import.MetadataTable(file)
+                # Initialize orders as disabled
+                self.__order_enabled = dict([(i, False) for i in range(len(self.__metadata.get_attribute_names()))])
                 self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
@@ -257,7 +265,7 @@ class UIDataUploadManager(object):
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
-            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata))
+            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata, self.__order_enabled))
             ipydisplay.display_html(table)  # A tuple is expected as input, but then it won't work for some reason...
 
     def __open_column_config(self):
@@ -363,7 +371,7 @@ def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
 
 
-def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
+def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable, order_enabled: typ.Dict[int, bool]) -> str:
     col_names = metadata.get_attribute_names()
     categories = [metadata.get_categories(name) for name in col_names]
 
@@ -371,10 +379,10 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
     header_html = ""
     # Checkbox for toggling ordinal
     checkbox_html = """
-        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+        <label><input type="checkbox" value="{value}" onchange="toggleSortable(this)" {checked}> Ordinal</label>"""
     for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(value=i, checked="checked" if order_enabled[i] else "")}</th>'
     header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists
@@ -383,11 +391,13 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         list_width = max(map(len, category))
         # list of lis for every attribute category
         # TODO: Make width work to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in
+        li_list = [f'<li width="{list_width}em">{category[element_id]}</li>' for element_id in
                    range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener
-        ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
+        ul = '<ul class="attrlist{sortable}" id="attr_list{id}">{lis}</ul>'
+        cat_id = categories.index(category)
+        ul = ul.format(sortable=" sortlist" if order_enabled[cat_id] else "", id=cat_id, lis=''.join(li_list))
         # Surround with td that aligns text at the top, otherwise it would be centered
         ul = f'<td style="vertical-align:top">{ul}</td>'
         body_html += ul
