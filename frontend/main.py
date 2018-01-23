@@ -1541,22 +1541,22 @@ class TemporalGraphFigure(object):
                 self.__figure_data['frames'][timestep]['data'][1]['y'].append(y)
 
                 # Add attribute info for hovering
-                info_text = []
+                info_text = f'<b style="color:#4caf50">ID:</b> {node_id}<br>'
                 # Add global attributes info
                 global_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'global']
                 if len(global_attribute_names) > 0:
-                    info_text.append('<b style="color:#91dfff">Global:</b><br>')
+                    info_text += '<b style="color:#91dfff">Global:</b><br>'
                 for attribute_name in global_attribute_names:
                     attribute_value = self.__temp_graph.get_node(node_id).get_global_attribute(attribute_name)
-                    info_text.append(f"{attribute_name}: {attribute_value}<br>")
+                    info_text += f"{attribute_name}: {attribute_value}<br>"
                 # Add local attributes info
                 local_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'local']
                 if len(local_attribute_names) > 0:
-                    info_text.append('<b style="color:#91dfff">Local:</b><br>')
+                    info_text += '<b style="color:#91dfff">Local:</b><br>'
                 for attribute_name in local_attribute_names:
                     attribute_value = self.__temp_graph.get_node(node_id).get_local_attribute(attribute_name, timestep)
-                    info_text.append(f"{attribute_name}: {attribute_value}<br>")
-                self.__figure_data['frames'][timestep]['data'][1]['text'].append(''.join(info_text))
+                    info_text += f"{attribute_name}: {attribute_value}<br>"
+                self.__figure_data['frames'][timestep]['data'][1]['text'].append(info_text)
 
             slider_step = {
                 'args': [
