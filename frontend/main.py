@@ -602,15 +602,13 @@ class UIGraphDisplayManager(object):
         self.__queries_manager.register_graph_display_manager(self)
 
     def display_graph(self):
+        plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False, config={'scrollZoom': True},
+                                  show_link=False, output_type='div')
+        # Remove js code that would cause autoplay
+        plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", plot_div_html)
         with self.__display_output:
             ipydisplay.clear_output()
-            plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False, config={'scrollZoom': True},
-                                      show_link=False, output_type='div')
-            # Remove js code that would cause autoplay
-            plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", plot_div_html)
-            with self.__display_output:
-                ipydisplay.clear_output()
-                ipydisplay.display(ipydisplay.HTML(plot_div_html))
+            ipydisplay.display(ipydisplay.HTML(plot_div_html))
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
