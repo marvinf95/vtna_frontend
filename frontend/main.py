@@ -604,11 +604,13 @@ class UIGraphDisplayManager(object):
     def display_graph(self):
         with self.__display_output:
             ipydisplay.clear_output()
-            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={'scrollZoom': True}, show_link=False, output_type='div')
-            pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
+            plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False, config={'scrollZoom': True},
+                                      show_link=False, output_type='div')
+            # Remove js code that would cause autoplay
+            plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", plot_div_html)
             with self.__display_output:
                 ipydisplay.clear_output()
-                ipydisplay.display(ipydisplay.HTML(pl1))
+                ipydisplay.display(ipydisplay.HTML(plot_div_html))
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
