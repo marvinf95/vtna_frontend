@@ -335,7 +335,7 @@ class UIDataUploadManager(object):
     def __open_graph_config(self):
         earliest, latest = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
         update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
-        self.__granularity = update_delta * 100
+        self.__granularity = update_delta * 1000
 
         self.__run_button.disabled = False
 
@@ -757,7 +757,7 @@ class UIGraphDisplayManager(object):
 
         def export_video(_):
             self.__video_export_manager = VideoExport(
-                self.__figure.get_figure()['frames'],
+                self.__figure.get_figure(),
                 initialize_progressbar,
                 increment_progress,
                 progress_finished)
@@ -1610,13 +1610,16 @@ class TemporalGraphFigure(object):
 
 class VideoExport(object):
     def __init__(self,
-                 frames: typ.Dict,
+                 figure: TemporalGraphFigure,
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
+        self.__figure = figure
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer and the progress bar
+        frames = figure['frames']
         self.__frame_count = len(frames)
+        self.__slider = figure['layout']['sliders'][0]
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: Callable
@@ -1635,8 +1638,7 @@ class VideoExport(object):
             # TODO: Show as user-friendly error message
             print(e)
 
-    @staticmethod
-    def __build_frame(data, index):
+    def __build_frame(self, data, index):
         figure = {'layout': {}, 'data': data}
         # First we build the layout of the plot that will be exported
         # TODO: Layout should be at least partially dependent/copied from original plotly layout
@@ -1661,6 +1663,18 @@ class VideoExport(object):
             'ticks': '',
             'showticklabels': False
         }
+        figure['layout']['sliders'] = [{
+            'currentvalue': {
+                'font': {'size': 20},
+                'prefix': 'Timestep: +',
+                'suffix': ' hours',
+                'visible': True,
+                'xanchor': 'right'
+            },
+            'pad': {'b': 10, 't': 20},
+            'steps': self.__slider['steps']
+        }]
+        figure['layout']['sliders'][0]['active'] = index
         # noinspection PyTypeChecker
         ipydisplay.display(ipydisplay.HTML(
             # Wrap our plot with a hidden div
