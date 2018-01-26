@@ -16,6 +16,7 @@ import pystache
 import base64
 import imageio
 import threading
+import datetime
 import webbrowser
 
 import vtna.data_import
@@ -748,7 +749,7 @@ class UIGraphDisplayManager(object):
             #open file in explorer
             local_files = ipydisplay.FileLink("./export.gif")
             webbrowser.open('file://'+ str(local_files))
-            # Hide progress bar after 2 seconds
+            # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
         def __hide_progressbar():
@@ -1438,7 +1439,8 @@ class TemporalGraphFigure(object):
             'xanchor': 'left',
             'currentvalue': {
                 'font': {'size': 20},
-                'prefix': 'Zeitpunkt:',
+                'prefix': 'Timestep: +',
+                'suffix': ' hours',
                 'visible': True,
                 'xanchor': 'right'
             },
@@ -1571,7 +1573,7 @@ class TemporalGraphFigure(object):
                         'transition': {'duration': 300}
                     }
                 ],
-                'label': str(timestep),
+                'label': str(datetime.timedelta(seconds=timestep*self.__temp_graph.get_granularity())),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
