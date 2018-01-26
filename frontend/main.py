@@ -335,7 +335,7 @@ class UIDataUploadManager(object):
     def __open_graph_config(self):
         earliest, latest = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
         update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
-        self.__granularity = update_delta * 1000
+        self.__granularity = update_delta * 100
 
         self.__run_button.disabled = False
 
@@ -1614,12 +1614,10 @@ class VideoExport(object):
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
-        self.__figure = figure
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer and the progress bar
         frames = figure['frames']
         self.__frame_count = len(frames)
-        self.__slider = figure['layout']['sliders'][0]
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: Callable
@@ -1627,6 +1625,8 @@ class VideoExport(object):
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
+
+        self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
         self.__written_frames = 0
         try:
@@ -1638,32 +1638,32 @@ class VideoExport(object):
             # TODO: Show as user-friendly error message
             print(e)
 
-    def __build_frame(self, data, index):
-        figure = {'layout': {}, 'data': data}
+    def __init_figure(self, steps):
+        self.__figure = {'layout': {}}
         # First we build the layout of the plot that will be exported
         # TODO: Layout should be at least partially dependent/copied from original plotly layout
-        figure['layout']['width'] = 500
-        figure['layout']['height'] = 500
-        figure['layout']['showlegend'] = False
+        self.__figure['layout']['width'] = 500
+        self.__figure['layout']['height'] = 500
+        self.__figure['layout']['showlegend'] = False
         # Make plot more compact
-        figure['layout']['margin'] = plotly.graph_objs.Margin(
+        self.__figure['layout']['margin'] = plotly.graph_objs.Margin(
             t=30,
             r=30,
             b=30,
             l=30,
             pad=0
         )
-        figure['layout']['yaxis'] = {
+        self.__figure['layout']['yaxis'] = {
             'range': [-1.1, 1.1],
             'ticks': '',
             'showticklabels': False
         }
-        figure['layout']['xaxis'] = {
+        self.__figure['layout']['xaxis'] = {
             'range': [-1.1, 1.1],
             'ticks': '',
             'showticklabels': False
         }
-        figure['layout']['sliders'] = [{
+        self.__figure['layout']['sliders'] = [{
             'currentvalue': {
                 'font': {'size': 20},
                 'prefix': 'Timestep: +',
@@ -1672,9 +1672,14 @@ class VideoExport(object):
                 'xanchor': 'right'
             },
             'pad': {'b': 10, 't': 20},
-            'steps': self.__slider['steps']
+            'steps': steps
         }]
-        figure['layout']['sliders'][0]['active'] = index
+
+    def __build_frame(self, data, index):
+        # Add current plot data (of this frame)
+        self.__figure['data'] = data
+        # Position dummy slider on current timestep
+        self.__figure['layout']['sliders'][0]['active'] = index
         # noinspection PyTypeChecker
         ipydisplay.display(ipydisplay.HTML(
             # Wrap our plot with a hidden div
@@ -1682,7 +1687,7 @@ class VideoExport(object):
             # plot() returns the html div with the plot itself.
             # Not including plotlyjs improves performance, and its already
             # loaded in the notebook anyways.
-            + plotly.offline.plot(figure, output_type='div', include_plotlyjs=False)
+            + plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
             # Execute the javascript that extracts the image.
             # Then we remove above div again, for not
             # causing memory leaks and easier access.
