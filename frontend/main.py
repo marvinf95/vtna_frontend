@@ -1497,12 +1497,13 @@ class TemporalGraphFigure(object):
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
+                text=[],
+                mode='lines',
+                hoverinfo='text',
                 line={
                     'width': self.__edge_width,
                     'color': self.__edge_color
-                },
-                hoverinfo='none',
-                mode='lines'
+                }
             )
             node_trace = plotly.graph_objs.Scatter(
                 x=[],
@@ -1529,6 +1530,9 @@ class TemporalGraphFigure(object):
                     x2, y2 = self.__layout[timestep][node2]
                     self.__figure_data['frames'][timestep]['data'][0]['x'].extend([x1, x2, None])
                     self.__figure_data['frames'][timestep]['data'][0]['y'].extend([y1, y2, None])
+                    # Add hover info
+                    info_text = f"{node1} --- {node2}<br>Interaction Count: {edge.get_count()}"
+                    self.__figure_data['frames'][timestep]['data'][0]['text'].append(info_text)
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
