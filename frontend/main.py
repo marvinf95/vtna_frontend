@@ -473,6 +473,7 @@ class UIGraphDisplayManager(object):
         self.__queries_manager = None  # type: UIAttributeQueriesManager
 
         self.__layout_vbox = layout_vbox
+        self.__export_vbox = export_vbox
         self.__loading_indicator = loading_indicator
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
@@ -486,6 +487,10 @@ class UIGraphDisplayManager(object):
         self.__figure = None  # type: TemporalGraphFigure
         self.__video_export_manager = None  # type: VideoExport
 
+        self.__init_layout_selection_widgets()
+        self.__init_export_widgets()
+
+    def __init_layout_selection_widgets(self):
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
         # Calulate widget width for dropdown selection box and slider widgets
         widget_width = f'{max(map(len, layout_options.keys())) + 1}rem'
@@ -555,15 +560,16 @@ class UIGraphDisplayManager(object):
             button_style='primary',
             tooltip='Apply Layout',
         )
+        self.__apply_layout_button.on_click(self.__build_apply_layout())
+        self.__set_current_layout_widgets()
 
-        # Exporting widgets
+    def __init_export_widgets(self):
         self.__download_button = widgets.Button(
             description='Download Video',
             disabled=False,
             button_style='primary',
             tooltip='Download Video',
         )
-
         self.__export_progressbar = widgets.IntProgress(
             value=0,
             min=0,
@@ -573,13 +579,8 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
-
-        self.__apply_layout_button.on_click(self.__build_apply_layout())
         self.__download_button.on_click(self.__build_export_video())
-
-        export_vbox.children = [self.__download_button, self.__export_progressbar]
-
-        self.__set_current_layout_widgets()
+        self.__export_vbox.children = [self.__download_button, self.__export_progressbar]
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
