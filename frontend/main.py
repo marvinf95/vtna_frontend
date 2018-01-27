@@ -459,6 +459,7 @@ class UIGraphDisplayManager(object):
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox,
+                 export_vbox: widgets.VBox,
                  loading_indicator: 'LoadingIndicator',
                  style_manager: 'UIDefaultStyleOptionsManager'
                  ):
@@ -472,6 +473,7 @@ class UIGraphDisplayManager(object):
         self.__queries_manager = None  # type: UIAttributeQueriesManager
 
         self.__layout_vbox = layout_vbox
+        self.__export_vbox = export_vbox
         self.__loading_indicator = loading_indicator
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
@@ -485,13 +487,19 @@ class UIGraphDisplayManager(object):
         self.__figure = None  # type: TemporalGraphFigure
         self.__video_export_manager = None  # type: VideoExport
 
+        self.__init_layout_selection_widgets()
+        self.__init_export_widgets()
+
+    def __init_layout_selection_widgets(self):
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
+        # Calulate widget width for dropdown selection box and slider widgets
+        widget_width = f'{max(map(len, layout_options.keys())) + 1}rem'
         self.__layout_select = widgets.Dropdown(
             options=layout_options,
             value=UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX],
             description='Layout:',
             # Width of dropdown is based on maximal length of function name.
-            layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
+            layout=widgets.Layout(width=widget_width)
         )
         self.__layout_select.observe(self.__build_select_layout())
 
@@ -500,7 +508,7 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output()
         self.__display_layout_description()
 
-        parameter_widget_layout = widgets.Layout(width='50rem')
+        parameter_widget_layout = widgets.Layout(width=widget_width)
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
@@ -552,14 +560,35 @@ class UIGraphDisplayManager(object):
             button_style='primary',
             tooltip='Apply Layout',
         )
+        self.__apply_layout_button.on_click(self.__build_apply_layout())
+        self.__set_current_layout_widgets()
 
+    def __init_export_widgets(self):
+        self.__export_format_dropdown = widgets.Dropdown(
+            options={'GIF': 1, 'MP4': 2},
+            value=1,
+            description='Format:',
+        )
+        self.__export_range_slider = widgets.IntRangeSlider(
+            min=0,
+            max=1,
+            step=1,
+            description='Time range:',
+            display='none',
+            orientation='horizontal',
+            layout=widgets.Layout(width="90%")
+        )
+        self.__export_skip_empty_frames_checkbox = widgets.Checkbox(
+            value=False,
+            description='Skip empty frames',
+            disabled=False
+        )
         self.__download_button = widgets.Button(
-            description='Download Video',
+            description='Export animation',
             disabled=False,
             button_style='primary',
-            tooltip='Download Video',
+            tooltip='Download a video of the animated plot',
         )
-
         self.__export_progressbar = widgets.IntProgress(
             value=0,
             min=0,
@@ -569,11 +598,13 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
-
-        self.__apply_layout_button.on_click(self.__build_apply_layout())
         self.__download_button.on_click(self.__build_export_video())
-
-        self.__set_current_layout_widgets()
+        self.__export_vbox.children = [
+            self.__export_format_dropdown,
+            self.__export_range_slider,
+            self.__export_skip_empty_frames_checkbox,
+            widgets.HBox([self.__download_button, self.__export_progressbar])
+        ]
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
@@ -596,6 +627,11 @@ class UIGraphDisplayManager(object):
                                             edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+        # Set maximum timestep for time range slider of export and make it visible
+        self.__export_range_slider.max = len(self.__temp_graph) - 1
+        self.__export_range_slider.layout.display = 'inline-flex'
+        self.__export_range_slider.value = (self.__export_range_slider.min, self.__export_range_slider.max)
 
     def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
         """Initializies the Query Manager."""
@@ -707,10 +743,7 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
-        # TODO: Move exporting widgets into own widget box
-        widget_list.append(widgets.HBox([self.__download_button, self.__export_progressbar],
-                                        layout=widgets.Layout(padding='0.5em')))
-        widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
+        widget_list.append(self.__layout_select)
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
@@ -729,7 +762,7 @@ class UIGraphDisplayManager(object):
                 self.__layout_parameter_PCA_repel_slider,
                 self.__layout_parameter_PCA_p_slider
             ])
-        widget_list.append(self.__layout_description_output)
+        widget_list.extend([self.__layout_description_output, self.__apply_layout_button])
         self.__layout_vbox.children = widget_list
 
     def __build_export_video(self) -> typ.Callable:
@@ -921,26 +954,25 @@ class UIAttributeQueriesManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply Queries to Graph',
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
-                                             self.__apply_to_graph_button])
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
         # Main toolbar : Operator Dropdown, Add Query Button
-        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button,
-                                          self.__add_new_clause_msg_html],
-                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
+        main_toolbar_vbox = widgets.VBox([widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
+                                          self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
              self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
-             main_toolbar_hbox])
+             main_toolbar_vbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
 
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box, self.__apply_to_graph_button]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -1780,8 +1812,8 @@ class UIDefaultStyleOptionsManager(object):
     INIT_NODE_SIZE = 10.0
     INIT_EDGE_SIZE = 0.6
 
-    def __init__(self, options_hbox: widgets.HBox):
-        self.__options_hbox = options_hbox
+    def __init__(self, options_vbox: widgets.VBox):
+        self.__options_vbox = options_vbox
         self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
 
         self.__node_color_picker = widgets.ColorPicker(
@@ -1815,13 +1847,15 @@ class UIDefaultStyleOptionsManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply default style',
-            layout=widgets.Layout(width='6em')
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_changes_button.on_click(self.__build_on_change())
 
-        self.__options_hbox.children = [
-            widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
-            widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text]),
+        self.__options_vbox.children = [
+            widgets.HBox([
+                widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
+                widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
+                ]),
             widgets.VBox([self.__apply_changes_button])
         ]
 
