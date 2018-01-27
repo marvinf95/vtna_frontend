@@ -578,7 +578,6 @@ class UIGraphDisplayManager(object):
         self.__download_button.on_click(self.__build_export_video())
 
         export_vbox.children = [self.__download_button, self.__export_progressbar]
-        export_vbox.layout = widgets.Layout(padding='0.5em')
 
         self.__set_current_layout_widgets()
 
@@ -925,26 +924,25 @@ class UIAttributeQueriesManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply Queries to Graph',
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
-                                             self.__apply_to_graph_button])
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
         # Main toolbar : Operator Dropdown, Add Query Button
-        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button,
-                                          self.__add_new_clause_msg_html],
-                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
+        main_toolbar_vbox = widgets.VBox([widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
+                                          self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
              self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
-             main_toolbar_hbox])
+             main_toolbar_vbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
 
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box, self.__apply_to_graph_button]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -1784,8 +1782,8 @@ class UIDefaultStyleOptionsManager(object):
     INIT_NODE_SIZE = 10.0
     INIT_EDGE_SIZE = 0.6
 
-    def __init__(self, options_hbox: widgets.HBox):
-        self.__options_hbox = options_hbox
+    def __init__(self, options_vbox: widgets.VBox):
+        self.__options_vbox = options_vbox
         self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
 
         self.__node_color_picker = widgets.ColorPicker(
@@ -1819,13 +1817,15 @@ class UIDefaultStyleOptionsManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply default style',
-            layout=widgets.Layout(width='6em')
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_changes_button.on_click(self.__build_on_change())
 
-        self.__options_hbox.children = [
-            widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
-            widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text]),
+        self.__options_vbox.children = [
+            widgets.HBox([
+                widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
+                widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
+                ]),
             widgets.VBox([self.__apply_changes_button])
         ]
 
