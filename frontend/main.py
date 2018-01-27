@@ -459,6 +459,7 @@ class UIGraphDisplayManager(object):
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox,
+                 export_vbox: widgets.VBox,
                  loading_indicator: 'LoadingIndicator',
                  style_manager: 'UIDefaultStyleOptionsManager'
                  ):
@@ -553,6 +554,7 @@ class UIGraphDisplayManager(object):
             tooltip='Apply Layout',
         )
 
+        # Exporting widgets
         self.__download_button = widgets.Button(
             description='Download Video',
             disabled=False,
@@ -572,6 +574,9 @@ class UIGraphDisplayManager(object):
 
         self.__apply_layout_button.on_click(self.__build_apply_layout())
         self.__download_button.on_click(self.__build_export_video())
+
+        export_vbox.children = [self.__download_button, self.__export_progressbar]
+        export_vbox.layout = widgets.Layout(padding='0.5em')
 
         self.__set_current_layout_widgets()
 
@@ -707,9 +712,6 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
-        # TODO: Move exporting widgets into own widget box
-        widget_list.append(widgets.HBox([self.__download_button, self.__export_progressbar],
-                                        layout=widgets.Layout(padding='0.5em')))
         widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
