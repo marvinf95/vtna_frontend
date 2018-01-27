@@ -487,12 +487,14 @@ class UIGraphDisplayManager(object):
         self.__video_export_manager = None  # type: VideoExport
 
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
+        # Calulate widget width for dropdown selection box and slider widgets
+        widget_width = f'{max(map(len, layout_options.keys())) + 1}rem'
         self.__layout_select = widgets.Dropdown(
             options=layout_options,
             value=UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX],
             description='Layout:',
             # Width of dropdown is based on maximal length of function name.
-            layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
+            layout=widgets.Layout(width=widget_width)
         )
         self.__layout_select.observe(self.__build_select_layout())
 
@@ -501,7 +503,7 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output()
         self.__display_layout_description()
 
-        parameter_widget_layout = widgets.Layout(width='50rem')
+        parameter_widget_layout = widgets.Layout(width=widget_width)
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
@@ -712,7 +714,7 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
-        widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
+        widget_list.append(self.__layout_select)
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
@@ -731,7 +733,7 @@ class UIGraphDisplayManager(object):
                 self.__layout_parameter_PCA_repel_slider,
                 self.__layout_parameter_PCA_p_slider
             ])
-        widget_list.append(self.__layout_description_output)
+        widget_list.extend([self.__layout_description_output, self.__apply_layout_button])
         self.__layout_vbox.children = widget_list
 
     def __build_export_video(self) -> typ.Callable:
