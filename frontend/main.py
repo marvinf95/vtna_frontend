@@ -564,11 +564,30 @@ class UIGraphDisplayManager(object):
         self.__set_current_layout_widgets()
 
     def __init_export_widgets(self):
+        self.__export_format_dropdown = widgets.Dropdown(
+            options={'GIF': 1, 'MP4': 2},
+            value=1,
+            description='Format:',
+        )
+        self.__export_range_slider = widgets.IntRangeSlider(
+            min=0,
+            max=1,
+            step=1,
+            description='Time range:',
+            display='none',
+            orientation='horizontal',
+            layout=widgets.Layout(width="90%")
+        )
+        self.__export_skip_empty_frames_checkbox = widgets.Checkbox(
+            value=False,
+            description='Skip empty frames',
+            disabled=False
+        )
         self.__download_button = widgets.Button(
-            description='Download Video',
+            description='Export animation',
             disabled=False,
             button_style='primary',
-            tooltip='Download Video',
+            tooltip='Download a video of the animated plot',
         )
         self.__export_progressbar = widgets.IntProgress(
             value=0,
@@ -580,7 +599,12 @@ class UIGraphDisplayManager(object):
             layout=widgets.Layout(display='none')
         )
         self.__download_button.on_click(self.__build_export_video())
-        self.__export_vbox.children = [self.__download_button, self.__export_progressbar]
+        self.__export_vbox.children = [
+            self.__export_format_dropdown,
+            self.__export_range_slider,
+            self.__export_skip_empty_frames_checkbox,
+            widgets.HBox([self.__download_button, self.__export_progressbar])
+        ]
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
@@ -603,6 +627,11 @@ class UIGraphDisplayManager(object):
                                             edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+        # Set maximum timestep for time range slider of export and make it visible
+        self.__export_range_slider.max = len(self.__temp_graph) - 1
+        self.__export_range_slider.layout.display = 'inline-flex'
+        self.__export_range_slider.value = (self.__export_range_slider.min, self.__export_range_slider.max)
 
     def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
         """Initializies the Query Manager."""
