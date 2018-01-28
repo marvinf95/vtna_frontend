@@ -569,6 +569,15 @@ class UIGraphDisplayManager(object):
             value=1,
             description='Format:',
         )
+        self.__export_frame_length_text = widgets.BoundedFloatText(
+                value=0.5,
+                min=0.01,
+                max=10.0,
+                step=0.01,
+                description='Frame length:',
+                disabled=False
+            )
+        self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
         self.__export_range_slider = widgets.IntRangeSlider(
             min=0,
             max=1,
@@ -578,10 +587,14 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(width="90%")
         )
-        self.__export_skip_empty_frames_checkbox = widgets.Checkbox(
+        self.__export_speedup_empty_frames_checkbox = widgets.Checkbox(
             value=False,
-            description='Skip empty frames',
+            description='Speed up empty frames',
             disabled=False
+        )
+        self.__export_speedup_warning = widgets.HTML(
+            value='<span style="color:#FF3A19">Warning: Speed up will be limited because frame length is too short</span>',
+            layout=widgets.Layout(display='none')
         )
         self.__download_button = widgets.Button(
             description='Export animation',
@@ -598,11 +611,14 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
+        self.__export_frame_length_text.observe(self.__build_check_speedup_possible())
+        self.__export_speedup_empty_frames_checkbox.observe(self.__build_check_speedup_possible())
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
+            self.__export_frame_length_box,
             self.__export_range_slider,
-            self.__export_skip_empty_frames_checkbox,
+            widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
         ]
 
@@ -715,6 +731,17 @@ class UIGraphDisplayManager(object):
 
         return select_layout
 
+    def __build_check_speedup_possible(self) -> typ.Callable:
+        def check_speedup_possible(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                if self.__export_frame_length_text.value / 10 < 0.01 and \
+                        self.__export_speedup_empty_frames_checkbox.value:
+                    self.__export_speedup_warning.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_warning.layout.display = 'none'
+
+        return check_speedup_possible
+
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
         # Read out parameters of widgets, dependent on selected layout
@@ -779,9 +806,9 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
-            #open file in explorer
+            # open file in explorer
             local_files = ipydisplay.FileLink("./export.gif")
-            webbrowser.open('file://'+ str(local_files))
+            webbrowser.open('file://' + str(local_files))
             # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
@@ -790,10 +817,13 @@ class UIGraphDisplayManager(object):
 
         def export_video(_):
             self.__video_export_manager = VideoExport(
-                self.__figure.get_figure(),
-                initialize_progressbar,
-                increment_progress,
-                progress_finished)
+                figure=self.__figure.get_figure(),
+                frame_length=self.__export_frame_length_text.value,
+                time_range=self.__export_range_slider.value,
+                speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
+                initialize_progressbar=initialize_progressbar,
+                increment_progress=increment_progress,
+                progress_finished=progress_finished)
         return export_video
 
     # This is just a propagation method so the JS code/the notebook can access
@@ -1646,27 +1676,37 @@ class TemporalGraphFigure(object):
 
 class VideoExport(object):
     def __init__(self,
-                 figure: TemporalGraphFigure,
+                 figure: typ.Dict,
+                 frame_length: float,
+                 time_range: typ.Tuple[int, int],
+                 speedup_empty_frames: bool,
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer and the progress bar
         frames = figure['frames']
-        self.__frame_count = len(frames)
+        self.__frame_count = time_range[1] - time_range[0]
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
-        self.__increment_progress = increment_progress  # type: Callable
-        self.__progress_finished = progress_finished  # type: Callable
+        self.__increment_progress = increment_progress  # type: typ.Callable
+        self.__progress_finished = progress_finished  # type: typ.Callable
+        # Length of a GIF frame
+        duration = frame_length
+        # Compute speed up duration list
+        if speedup_empty_frames:
+            # GIF cant have more than 100 FPS
+            speedup_length = frame_length/10 if frame_length/10 >= 0.01 else 0.01
+            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames[time_range[0]:time_range[1]+1]]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
         self.__written_frames = 0
         try:
-            for i in range(self.__frame_count):
+            for i in range(time_range[0], time_range[1]):
                 self.__build_frame(frames[i]['data'], i)
                 self.__increment_progress()
         except Exception as e:
