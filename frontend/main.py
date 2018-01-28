@@ -1693,11 +1693,11 @@ class VideoExport(object):
         self.__progress_finished = progress_finished  # type: typ.Callable
         # Length of a GIF frame
         duration = frame_length
-        # Compute speed up duration dict
+        # Compute speed up duration list
         if speedup_empty_frames:
             # GIF cant have more than 100 FPS
             speedup_length = frame_length/10 if frame_length/10 >= 0.01 else 0.01
-            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames]
+            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames[time_range[0]:time_range[1]+1]]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
