@@ -569,6 +569,15 @@ class UIGraphDisplayManager(object):
             value=1,
             description='Format:',
         )
+        self.__export_frame_length_text = widgets.BoundedFloatText(
+                value=0.1,
+                min=0.01,
+                max=10.0,
+                step=0.01,
+                description='Frame length:',
+                disabled=False
+            )
+        self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
         self.__export_range_slider = widgets.IntRangeSlider(
             min=0,
             max=1,
@@ -601,6 +610,7 @@ class UIGraphDisplayManager(object):
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
+            self.__export_frame_length_box,
             self.__export_range_slider,
             self.__export_skip_empty_frames_checkbox,
             widgets.HBox([self.__download_button, self.__export_progressbar])
