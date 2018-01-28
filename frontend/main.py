@@ -587,10 +587,14 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(width="90%")
         )
-        self.__export_speed_up_empty_frames_checkbox = widgets.Checkbox(
+        self.__export_speedup_empty_frames_checkbox = widgets.Checkbox(
             value=False,
             description='Speed up empty frames',
             disabled=False
+        )
+        self.__export_speedup_warning = widgets.HTML(
+            value='<span style="color:#FF3A19">Warning: Speed up will be limited because frame length is too short</span>',
+            layout=widgets.Layout(display='none')
         )
         self.__download_button = widgets.Button(
             description='Export animation',
@@ -607,12 +611,14 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
+        self.__export_frame_length_text.observe(self.__build_check_speedup_possible())
+        self.__export_speedup_empty_frames_checkbox.observe(self.__build_check_speedup_possible())
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
             self.__export_frame_length_box,
             self.__export_range_slider,
-            self.__export_speed_up_empty_frames_checkbox,
+            widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
         ]
 
@@ -725,6 +731,17 @@ class UIGraphDisplayManager(object):
 
         return select_layout
 
+    def __build_check_speedup_possible(self) -> typ.Callable:
+        def check_speedup_possible(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                if self.__export_frame_length_text.value / 10 < 0.01 and \
+                        self.__export_speedup_empty_frames_checkbox.value:
+                    self.__export_speedup_warning.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_warning.layout.display = 'none'
+
+        return check_speedup_possible
+
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
         # Read out parameters of widgets, dependent on selected layout
@@ -803,7 +820,7 @@ class UIGraphDisplayManager(object):
                 figure=self.__figure.get_figure(),
                 frame_length=self.__export_frame_length_text.value,
                 time_range=self.__export_range_slider.value,
-                speed_up_empty_frames=self.__export_speed_up_empty_frames_checkbox.value,
+                speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
                 initialize_progressbar=initialize_progressbar,
                 increment_progress=increment_progress,
                 progress_finished=progress_finished)
@@ -1662,7 +1679,7 @@ class VideoExport(object):
                  figure: typ.Dict,
                  frame_length: float,
                  time_range: typ.Tuple[int, int],
-                 speed_up_empty_frames: bool,
+                 speedup_empty_frames: bool,
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
@@ -1677,7 +1694,7 @@ class VideoExport(object):
         # Length of a GIF frame
         duration = frame_length
         # Compute speed up duration dict
-        if speed_up_empty_frames:
+        if speedup_empty_frames:
             # GIF cant have more than 100 FPS
             speedup_length = frame_length/10 if frame_length/10 >= 0.01 else 0.01
             duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames]
