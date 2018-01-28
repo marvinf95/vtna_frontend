@@ -587,9 +587,9 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(width="90%")
         )
-        self.__export_skip_empty_frames_checkbox = widgets.Checkbox(
+        self.__export_speed_up_empty_frames_checkbox = widgets.Checkbox(
             value=False,
-            description='Skip empty frames',
+            description='Speed up empty frames',
             disabled=False
         )
         self.__download_button = widgets.Button(
@@ -612,7 +612,7 @@ class UIGraphDisplayManager(object):
             self.__export_format_dropdown,
             self.__export_frame_length_box,
             self.__export_range_slider,
-            self.__export_skip_empty_frames_checkbox,
+            self.__export_speed_up_empty_frames_checkbox,
             widgets.HBox([self.__download_button, self.__export_progressbar])
         ]
 
@@ -803,6 +803,7 @@ class UIGraphDisplayManager(object):
                 figure=self.__figure.get_figure(),
                 frame_length=self.__export_frame_length_text.value,
                 time_range=self.__export_range_slider.value,
+                speed_up_empty_frames=self.__export_speed_up_empty_frames_checkbox.value,
                 initialize_progressbar=initialize_progressbar,
                 increment_progress=increment_progress,
                 progress_finished=progress_finished)
@@ -1661,6 +1662,7 @@ class VideoExport(object):
                  figure: typ.Dict,
                  frame_length: float,
                  time_range: typ.Tuple[int, int],
+                 speed_up_empty_frames: bool,
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
@@ -1672,9 +1674,16 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
+        # Length of a GIF frame
+        duration = frame_length
+        # Compute speed up duration dict
+        if speed_up_empty_frames:
+            # GIF cant have more than 100 FPS
+            speedup_length = frame_length/10 if frame_length/10 >= 0.01 else 0.01
+            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I', duration=frame_length)
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
