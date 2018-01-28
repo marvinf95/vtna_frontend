@@ -570,7 +570,7 @@ class UIGraphDisplayManager(object):
             description='Format:',
         )
         self.__export_frame_length_text = widgets.BoundedFloatText(
-                value=0.1,
+                value=0.5,
                 min=0.01,
                 max=10.0,
                 step=0.01,
@@ -789,9 +789,9 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
-            #open file in explorer
+            # open file in explorer
             local_files = ipydisplay.FileLink("./export.gif")
-            webbrowser.open('file://'+ str(local_files))
+            webbrowser.open('file://' + str(local_files))
             # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
@@ -800,10 +800,12 @@ class UIGraphDisplayManager(object):
 
         def export_video(_):
             self.__video_export_manager = VideoExport(
-                self.__figure.get_figure(),
-                initialize_progressbar,
-                increment_progress,
-                progress_finished)
+                figure=self.__figure.get_figure(),
+                frame_length=self.__export_frame_length_text.value,
+                time_range=self.__export_range_slider.value,
+                initialize_progressbar=initialize_progressbar,
+                increment_progress=increment_progress,
+                progress_finished=progress_finished)
         return export_video
 
     # This is just a propagation method so the JS code/the notebook can access
@@ -1656,27 +1658,29 @@ class TemporalGraphFigure(object):
 
 class VideoExport(object):
     def __init__(self,
-                 figure: TemporalGraphFigure,
+                 figure: typ.Dict,
+                 frame_length: float,
+                 time_range: typ.Tuple[int, int],
                  initialize_progressbar: typ.Callable,
                  increment_progress: typ.Callable,
                  progress_finished: typ.Callable):
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer and the progress bar
         frames = figure['frames']
-        self.__frame_count = len(frames)
+        self.__frame_count = time_range[1] - time_range[0]
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
-        self.__increment_progress = increment_progress  # type: Callable
-        self.__progress_finished = progress_finished  # type: Callable
+        self.__increment_progress = increment_progress  # type: typ.Callable
+        self.__progress_finished = progress_finished  # type: typ.Callable
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I', duration=0.5)
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=frame_length)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
         self.__written_frames = 0
         try:
-            for i in range(self.__frame_count):
+            for i in range(time_range[0], time_range[1]):
                 self.__build_frame(frames[i]['data'], i)
                 self.__increment_progress()
         except Exception as e:
