@@ -691,7 +691,7 @@ class UIGraphDisplayManager(object):
             self.__stop_graph_loading()
 
     def __display_layout_description(self):
-        description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
+        description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_select.value.description)
 
         with self.__layout_description_output:
             ipydisplay.clear_output()
@@ -775,7 +775,8 @@ class UIGraphDisplayManager(object):
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
             vtna.layout.static_weighted_spring_layout,
-            vtna.layout.flexible_weighted_spring_layout
+            vtna.layout.flexible_weighted_spring_layout,
+            vtna.layout.chained_weighted_spring_layout
         ]:
             widget_list.extend([
                 self.__layout_parameter_nodedistance_slider,
