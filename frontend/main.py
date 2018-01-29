@@ -1570,6 +1570,7 @@ class TemporalGraphFigure(object):
             node_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
+                ids=[],
                 text=[],
                 mode='markers',
                 hoverinfo='text',
@@ -1611,6 +1612,7 @@ class TemporalGraphFigure(object):
                 x, y = self.__layout[timestep][node_id]
                 self.__figure_data['frames'][timestep]['data'][1]['x'].append(x)
                 self.__figure_data['frames'][timestep]['data'][1]['y'].append(y)
+                self.__figure_data['frames'][timestep]['data'][1]['ids'].append(node_id)
 
                 # Add attribute info for hovering
                 info_text = f'<b style="color:#4caf50">ID:</b> {node_id}<br>'
