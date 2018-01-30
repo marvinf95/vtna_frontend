@@ -1460,7 +1460,7 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
-                    'duration': 400,
+                    'duration': 0,
                     'easing': 'cubic-in-out',
                 }
             ],
@@ -1475,7 +1475,7 @@ class TemporalGraphFigure(object):
                     {
                         'args': [None, {'frame': {'duration': 500, 'redraw': False},
                                         'fromcurrent': True,
-                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
+                                        'transition': {'duration': 0, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
                         'method': 'animate'
                     },
@@ -1506,8 +1506,7 @@ class TemporalGraphFigure(object):
                 'suffix': ' hours',
                 'visible': True,
                 'xanchor': 'right'
-            },
-            'transition': {'duration': 300, 'easing': 'immediate'},
+            },         
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
