@@ -29,6 +29,7 @@ import vtna.utility
 from ipywidgets import widgets
 
 
+
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
@@ -193,6 +194,12 @@ class UIDataUploadManager(object):
             except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {file}'
                 self.display_graph_upload_error(error_msg)
+            except OSError:
+                network_help = ""
+                if upload_origin is self.UploadOrigin.NETWORK:
+                    network_help = " Check your internet access or try again later."
+                error_msg = f'Error accessing {file}.{network_help}'
+                self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Columns 1-3 in {file} must be integers'
                 self.display_graph_upload_error(error_msg)
@@ -233,6 +240,12 @@ class UIDataUploadManager(object):
             except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
+            except OSError:
+                network_help = ""
+                if upload_origin is self.UploadOrigin.NETWORK:
+                    network_help = " Check your internet access or try again later."
+                error_msg = f'Error accessing {file}.{network_help}'
+                self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Column 1 in {file} must be integer'
                 self.display_metadata_upload_error(error_msg)
@@ -1478,7 +1491,7 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
-                    'duration': 0,
+                    'duration': 400,
                     'easing': 'cubic-in-out',
                 }
             ],
@@ -1493,7 +1506,7 @@ class TemporalGraphFigure(object):
                     {
                         'args': [None, {'frame': {'duration': 500, 'redraw': False},
                                         'fromcurrent': True,
-                                        'transition': {'duration': 0, 'easing': 'quadratic-in-out'}}],
+                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
                         'method': 'animate'
                     },
@@ -1525,6 +1538,7 @@ class TemporalGraphFigure(object):
                 'visible': True,
                 'xanchor': 'right'
             },
+            'transition': {'duration': 300, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
