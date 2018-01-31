@@ -29,6 +29,7 @@ import vtna.utility
 from ipywidgets import widgets
 
 
+
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
@@ -1478,7 +1479,7 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
-                    'duration': 0,
+                    'duration': 400,
                     'easing': 'cubic-in-out',
                 }
             ],
@@ -1493,7 +1494,7 @@ class TemporalGraphFigure(object):
                     {
                         'args': [None, {'frame': {'duration': 500, 'redraw': False},
                                         'fromcurrent': True,
-                                        'transition': {'duration': 0, 'easing': 'quadratic-in-out'}}],
+                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
                         'method': 'animate'
                     },
@@ -1525,6 +1526,7 @@ class TemporalGraphFigure(object):
                 'visible': True,
                 'xanchor': 'right'
             },
+            'transition': {'duration': 300, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
