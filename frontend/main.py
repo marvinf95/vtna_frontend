@@ -859,6 +859,7 @@ class UIAttributeQueriesManager(object):
         self.__interval_value_float_slider = None  # type: widgets.Dropdown
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
         self.__color_picker = None  # type: widgets.ColorPicker
+        self.__color_picker_msg_html = None  # type: widgets.HTML
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
         self.__add_new_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
@@ -930,6 +931,7 @@ class UIAttributeQueriesManager(object):
             description='Color:',
             disabled=False
         )
+        self.__color_picker.layout.display = 'flex-inline'
         # Add new filter
         self.__add_new_query_button = widgets.Button(
             disabled=False,
@@ -973,9 +975,10 @@ class UIAttributeQueriesManager(object):
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
 
         # Msg for colorpicker
-        color_picker_msg_html = widgets.HTML(
-            value="<span style='color:#7f8c8d'> Use the <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
-                  "to change the color of a query</span>")
+        self.__color_picker_msg_html = widgets.HTML(
+            value="<span style='color:#7f8c8d'> Click <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
+                  "to change highlight color</span>")
+        self.__color_picker.layout.display = 'inline-flex'
         # Msg for add new clause
         self.__add_new_clause_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
@@ -1002,7 +1005,8 @@ class UIAttributeQueriesManager(object):
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
-             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
+             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker,
+                                                                        self.__color_picker_msg_html]),
              main_toolbar_vbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
@@ -1214,6 +1218,12 @@ class UIAttributeQueriesManager(object):
             if change['type'] == 'change' and change['name'] == 'value':
                 ipydisplay.display(ipydisplay.Javascript("je.setMode('" + self.__filter_highlight_toggle_buttons.value
                                                          + "').switchMode();"))
+                if self.__filter_highlight_toggle_buttons.value == 'Highlight':
+                    self.__color_picker.layout.display = 'inline-flex'
+                    self.__color_picker_msg_html.layout.display = 'inline-flex'
+                elif self.__filter_highlight_toggle_buttons.value == 'Filter':
+                    self.__color_picker.layout.display = 'none'
+                    self.__color_picker_msg_html.layout.display = 'none'
                 # Redraw queries output completely
                 self.__construct_queries_from_scratch()
 
