@@ -311,7 +311,9 @@ class UIDataUploadManager(object):
             button_style='primary',
             tooltip='Rename columns',
         )
-        self.__metadata_configuration_vbox.children += (rename_button,)
+        rename_hbox = widgets.HBox(layout=widgets.Layout(justify_content='flex-end'))
+        rename_hbox.children = [rename_button]
+        self.__metadata_configuration_vbox.children += (rename_hbox,)
 
         def apply_rename(_):
             to_rename = dict()

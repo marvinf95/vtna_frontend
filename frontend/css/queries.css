@@ -70,7 +70,7 @@ ul.query-row li {
     min-width: 100px;
 }
 .widget-inline-hbox .widget-label {
-    /*width: 94px;*/
+    width: 7em;
 }
 .custom-icon{
     width: 18px;
