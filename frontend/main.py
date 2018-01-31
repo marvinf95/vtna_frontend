@@ -590,10 +590,8 @@ class UIGraphDisplayManager(object):
             disabled=False
         )
         self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
-        self.__export_range_slider = widgets.IntRangeSlider(
-            min=0,
-            max=1,
-            step=1,
+        self.__export_range_slider = widgets.SelectionRangeSlider(
+            options=[0],
             description='Time range:',
             display='none',
             orientation='horizontal',
@@ -657,10 +655,11 @@ class UIGraphDisplayManager(object):
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
 
-        # Set maximum timestep for time range slider of export and make it visible
-        self.__export_range_slider.max = len(self.__temp_graph) - 1
+        # Set options for time range slider of export and make it visible
+        options = [' ' + str(datetime.timedelta(seconds=timestep * self.__temp_graph.get_granularity())) + ' hours ' for timestep in range(len(self.__temp_graph))]
+        self.__export_range_slider.options = options
         self.__export_range_slider.layout.display = 'inline-flex'
-        self.__export_range_slider.value = (self.__export_range_slider.min, self.__export_range_slider.max)
+        self.__export_range_slider.index = (0, len(self.__temp_graph)-1)
 
     def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
         """Initializies the Query Manager."""
@@ -835,7 +834,7 @@ class UIGraphDisplayManager(object):
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
                 frame_length=self.__export_frame_length_text.value,
-                time_range=self.__export_range_slider.value,
+                time_range=self.__export_range_slider.index,
                 speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
                 initialize_progressbar=initialize_progressbar,
                 increment_progress=increment_progress,
