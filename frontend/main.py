@@ -409,8 +409,9 @@ class UIDataUploadManager(object):
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Total Edges:', len(edges))
-    print('Update Delta:', vtna.data_import.infer_update_delta(edges))
-    print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
+    print('Inferred Update Interval:', vtna.data_import.infer_update_delta(edges), 'seconds')
+    interval = vtna.data_import.get_time_interval_of_edges(edges)
+    print('Total Dataset Time:', str(datetime.timedelta(seconds=(interval[1]-interval[0]))), 'hours')
 
 
 def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable, order_enabled: typ.Dict[int, bool]) -> str:
