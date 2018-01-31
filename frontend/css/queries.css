@@ -63,7 +63,7 @@ ul.query-row {
 
 ul.query-row li {
     display:table-cell;
-    min-width:72px;
+    /*min-width: 72px;*/
 }
 .widget-inline-hbox .widget-readout {
     max-width: 250px;
