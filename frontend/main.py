@@ -195,10 +195,9 @@ class UIDataUploadManager(object):
                 error_msg = f'Could not access URL {file}'
                 self.display_graph_upload_error(error_msg)
             except OSError:
-                network_help = ""
+                error_msg = f'Error accessing {file}.'
                 if upload_origin is self.UploadOrigin.NETWORK:
-                    network_help = " Check your internet access or try again later."
-                error_msg = f'Error accessing {file}.{network_help}'
+                    error_msg += " Check your internet access or try again later."
                 self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Columns 1-3 in {file} must be integers'
@@ -241,10 +240,9 @@ class UIDataUploadManager(object):
                 error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
             except OSError:
-                network_help = ""
+                error_msg = f'Error accessing {file}.'
                 if upload_origin is self.UploadOrigin.NETWORK:
-                    network_help = " Check your internet access or try again later."
-                error_msg = f'Error accessing {file}.{network_help}'
+                    error_msg += " Check your internet access or try again later."
                 self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Column 1 in {file} must be integer'
