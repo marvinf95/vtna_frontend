@@ -29,7 +29,6 @@ import vtna.utility
 from ipywidgets import widgets
 
 
-
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
@@ -179,9 +178,9 @@ class UIDataUploadManager(object):
                     with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                         f.write(w.data)
                         self.__graph_data_text.value = w.filename
-                        # Import graph as edge list via vtna
-                        self.__edge_list = vtna.data_import.read_edge_table(
-                            UIDataUploadManager.UPLOAD_DIR + w.filename)
+                    # Import graph as edge list via vtna
+                    self.__edge_list = vtna.data_import.read_edge_table(
+                        UIDataUploadManager.UPLOAD_DIR + w.filename)
                 elif upload_origin is self.UploadOrigin.NETWORK:
                     file = self.__graph_data_text.value
                     self.__edge_list = vtna.data_import.read_edge_table(file)
@@ -570,13 +569,13 @@ class UIGraphDisplayManager(object):
             description='Format:',
         )
         self.__export_frame_length_text = widgets.BoundedFloatText(
-                value=0.5,
-                min=0.01,
-                max=10.0,
-                step=0.01,
-                description='Frame length:',
-                disabled=False
-            )
+            value=0.5,
+            min=0.01,
+            max=10.0,
+            step=0.01,
+            description='Frame length:',
+            disabled=False
+        )
         self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
         self.__export_range_slider = widgets.IntRangeSlider(
             min=0,
@@ -631,7 +630,8 @@ class UIGraphDisplayManager(object):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
 
-        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph, [m for m, selected in selected_measures.items() if selected])
+        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph,
+                                                          [m for m, selected in selected_measures.items() if selected])
         self.__node_measure_manager.add_all_to_graph()
 
         self.__figure = TemporalGraphFigure(temp_graph=self.__temp_graph,
@@ -655,10 +655,12 @@ class UIGraphDisplayManager(object):
         self.__queries_manager.register_graph_display_manager(self)
 
     def display_graph(self):
-        plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False, config={'scrollZoom': True},
-                                  show_link=False, output_type='div')
+        plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False,
+                                            config={'scrollZoom': True},
+                                            show_link=False, output_type='div')
         # Remove js code that would cause autoplay
-        plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", plot_div_html)
+        plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "",
+                               plot_div_html)
         with self.__display_output:
             ipydisplay.clear_output()
             ipydisplay.display(ipydisplay.HTML(plot_div_html))
@@ -825,6 +827,7 @@ class UIGraphDisplayManager(object):
                 initialize_progressbar=initialize_progressbar,
                 increment_progress=increment_progress,
                 progress_finished=progress_finished)
+
         return export_video
 
     # This is just a propagation method so the JS code/the notebook can access
@@ -915,7 +918,8 @@ class UIAttributeQueriesManager(object):
         self.__ordinal_value_selection_range_slider = widgets.SelectionRangeSlider(
             description='Value:',
             options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'O' else ['N/A'],
-            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (0, 0),
+            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (
+            0, 0),
             disabled=True if initial_attribute['measurement_type'] != 'O' else False,
             layout=widgets.Layout(width='99%')
         )
@@ -992,8 +996,9 @@ class UIAttributeQueriesManager(object):
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
         queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
         # Main toolbar : Operator Dropdown, Add Query Button
-        main_toolbar_vbox = widgets.VBox([widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
-                                          self.__add_new_clause_msg_html])
+        main_toolbar_vbox = widgets.VBox(
+            [widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
+             self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
             [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
@@ -1003,7 +1008,8 @@ class UIAttributeQueriesManager(object):
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
 
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box, self.__apply_to_graph_button]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box,
+                                             self.__apply_to_graph_button]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -1363,7 +1369,6 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
 
 
 class NodeMeasuresManager(object):
-
     # A dictionary is used for easier returning of specific measures
     node_measure_types = {
         'LOCAL_DEGREE_CENTRALITY': vtna.node_measure.LocalDegreeCentrality,
@@ -1394,7 +1399,8 @@ class NodeMeasuresManager(object):
             raise self.DuplicateMeasuresError(duplicate_names)
 
         # Instantiate and compute node measures
-        self.__node_measures = dict([(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
+        self.__node_measures = dict(
+            [(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
 
     def add_all_to_graph(self):
         """Adds all currently computed node measures to the temporal graph."""
@@ -1506,7 +1512,7 @@ class TemporalGraphFigure(object):
                 'suffix': ' hours',
                 'visible': True,
                 'xanchor': 'right'
-            },         
+            },
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
@@ -1594,7 +1600,8 @@ class TemporalGraphFigure(object):
                     x2, y2 = self.__layout[timestep][node2]
                     self.__figure_data['frames'][timestep]['data'][0]['x'].extend([x1, x2, None])
                     self.__figure_data['frames'][timestep]['data'][0]['y'].extend([y1, y2, None])
-                    self.__figure_data['frames'][timestep]['data'][0]['ids'].append(str(timestep)+':'+str(node1)+','+str(node2))
+                    self.__figure_data['frames'][timestep]['data'][0]['ids'].append(
+                        str(timestep) + ':' + str(node1) + ',' + str(node2))
                     # Add hover info
                     info_text = f"{node1} --- {node2}<br>Interaction Count: {edge.get_count()}"
                     self.__figure_data['frames'][timestep]['data'][0]['text'].append(info_text)
@@ -1619,14 +1626,16 @@ class TemporalGraphFigure(object):
                 # Add attribute info for hovering
                 info_text = f'<b style="color:#4caf50">ID:</b> {node_id}<br>'
                 # Add global attributes info
-                global_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'global']
+                global_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if
+                                          info['scope'] == 'global']
                 if len(global_attribute_names) > 0:
                     info_text += '<b style="color:#91dfff">Global:</b><br>'
                 for attribute_name in global_attribute_names:
                     attribute_value = self.__temp_graph.get_node(node_id).get_global_attribute(attribute_name)
                     info_text += f"{attribute_name}: {attribute_value}<br>"
                 # Add local attributes info
-                local_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if info['scope'] == 'local']
+                local_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if
+                                         info['scope'] == 'local']
                 if len(local_attribute_names) > 0:
                     info_text += '<b style="color:#91dfff">Local:</b><br>'
                 for attribute_name in local_attribute_names:
@@ -1643,7 +1652,7 @@ class TemporalGraphFigure(object):
                         'transition': {'duration': 300}
                     }
                 ],
-                'label': str(datetime.timedelta(seconds=timestep*self.__temp_graph.get_granularity())),
+                'label': str(datetime.timedelta(seconds=timestep * self.__temp_graph.get_granularity())),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
@@ -1700,8 +1709,9 @@ class VideoExport(object):
         # Compute speed up duration list
         if speedup_empty_frames:
             # GIF cant have more than 100 FPS
-            speedup_length = frame_length/10 if frame_length/10 >= 0.01 else 0.01
-            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in frames[time_range[0]:time_range[1]+1]]
+            speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
+            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
+                        frames[time_range[0]:time_range[1] + 1]]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
@@ -1899,7 +1909,7 @@ class UIDefaultStyleOptionsManager(object):
             widgets.HBox([
                 widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
                 widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
-                ]),
+            ]),
             widgets.VBox([self.__apply_changes_button])
         ]
 
@@ -1976,6 +1986,6 @@ class UIStatisticsManager(object):
                                                                'is_filtering': is_filtering,
                                                                'is_highlighting': is_highlighting,
                                                                'avg_degree': avg_degree,
-                                                               'diameter' :diameter,
+                                                               'diameter': diameter,
                                                                'avg_clustering_coefficient': avg_clustering_coefficient})
         self.__graph_summary_html.value = html
