@@ -352,13 +352,15 @@ class UIDataUploadManager(object):
         self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
-            description='Granularity',
+            description='Granularity:',
             value=self.__granularity,
             min=update_delta,
             max=latest - earliest,
             step=update_delta,
+            layout=widgets.Layout(width="15em"),
             disabled=False
         )
+        granularity_label = widgets.Label(value='seconds', layout=widgets.Layout(margin="0em 1em 0em 0.2em"))
         apply_granularity_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -388,7 +390,7 @@ class UIDataUploadManager(object):
         apply_granularity_button.on_click(update_granularity_and_graph_data_output)
 
         self.__graph_data__configuration_vbox.children = \
-            [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
+            [widgets.HBox([granularity_bounded_int_text, granularity_label, apply_granularity_button])]
 
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
