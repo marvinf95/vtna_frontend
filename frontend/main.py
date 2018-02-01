@@ -1591,9 +1591,7 @@ class TemporalGraphFigure(object):
                 x=[],
                 y=[],
                 ids=[],
-                text=[],
                 mode='lines',
-                hoverinfo='text',
                 line={
                     'width': self.__edge_width,
                     'color': self.__edge_color
@@ -1624,9 +1622,6 @@ class TemporalGraphFigure(object):
                     edge_trace['y'].extend([y1, y2, None])
                     edge_trace['ids'].extend(2*[str(timestep) + ':' + str(node1) + ',' + str(node2)])
                     edge_trace['ids'].append('0')
-                    # Add hover info
-                    info_text = f"{node1} --- {node2}<br>Interaction Count: {edge.get_count()}"
-                    edge_trace['text'].extend([info_text]*3)
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
