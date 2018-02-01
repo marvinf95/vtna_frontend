@@ -89,6 +89,7 @@ ul.query-row li {
 h4.module-header{
     background: #fbfbfb;
     border: 1px solid #dedede;
+    border-top: none;
     box-shadow: 0 8px 6px -7px #e8e8e8;
     padding: 5px;
     margin: 0px -2px -2px -6px;
