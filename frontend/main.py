@@ -1620,8 +1620,7 @@ class TemporalGraphFigure(object):
                     x2, y2 = self.__layout[timestep][node2]
                     edge_trace['x'].extend([x1, x2, None])
                     edge_trace['y'].extend([y1, y2, None])
-                    edge_trace['ids'].extend(2*[str(timestep) + ':' + str(node1) + ',' + str(node2)])
-                    edge_trace['ids'].append('0')
+                    edge_trace['ids'].extend([node1, node2, 0])
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
