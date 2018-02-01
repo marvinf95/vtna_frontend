@@ -651,6 +651,7 @@ class UIGraphDisplayManager(object):
         self.__figure = TemporalGraphFigure(temp_graph=self.__temp_graph,
                                             layout=layout,
                                             display_size=self.__display_size,
+                                            animate_transitions=not self.__layout_function.is_static,
                                             color_map=self.__style_manager.get_node_color(),
                                             edge_color=self.__style_manager.get_edge_color(),
                                             node_size=self.__style_manager.get_node_size(),
@@ -725,6 +726,7 @@ class UIGraphDisplayManager(object):
             self.__layout_function = self.__layout_select.value
             layout = self.__compute_layout()
             # ... and update figure
+            self.__figure.toggle_animate_transitions(not self.__layout_function.is_static)
             self.__figure.update_layout(layout)
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
@@ -1443,9 +1445,15 @@ class NodeMeasuresManager(object):
 
 
 class TemporalGraphFigure(object):
-    def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
-                 display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]], edge_color: str,
-                 node_size: float, edge_width: float):
+    def __init__(self,
+                 temp_graph: vtna.graph.TemporalGraph,
+                 layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
+                 display_size: typ.Tuple[int, int],
+                 animate_transitions: bool,
+                 color_map: typ.Union[str, typ.Dict[int, str]],
+                 edge_color: str,
+                 node_size: float,
+                 edge_width: float):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
@@ -1460,6 +1468,8 @@ class TemporalGraphFigure(object):
         self.__figure_data = None  # type: typ.Dict
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
+        self.__transition_time = 300
+        self.toggle_animate_transitions(animate_transitions)
         self.__build_data_frames()
 
     def __init_figure_data(self):
@@ -1491,7 +1501,7 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
-                    'duration': 400,
+                    'duration': self.__transition_time,
                     'easing': 'cubic-in-out',
                 }
             ],
@@ -1506,7 +1516,7 @@ class TemporalGraphFigure(object):
                     {
                         'args': [None, {'frame': {'duration': 500, 'redraw': False},
                                         'fromcurrent': True,
-                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
+                                        'transition': {'duration': self.__transition_time, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
                         'method': 'animate'
                     },
@@ -1538,7 +1548,7 @@ class TemporalGraphFigure(object):
                 'visible': True,
                 'xanchor': 'right'
             },
-            'transition': {'duration': 300, 'easing': 'immediate'},
+            'transition': {'duration': self.__transition_time, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
@@ -1548,6 +1558,13 @@ class TemporalGraphFigure(object):
 
     def get_figure(self) -> typ.Dict:
         return self.__figure_data
+
+    def toggle_animate_transitions(self, animate_transitions: bool):
+        """Toggles transition animation. Must be called before frames are built."""
+        if animate_transitions:
+            self.__transition_time = 300
+        else:
+            self.__transition_time = 0
 
     def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
         if self.__color_map != color_map:
@@ -1667,7 +1684,7 @@ class TemporalGraphFigure(object):
                     {
                         'frame': {'duration': 300, 'redraw': False},
                         'mode': 'immediate',
-                        'transition': {'duration': 300}
+                        'transition': {'duration': self.__transition_time}
                     }
                 ],
                 'label': str(datetime.timedelta(seconds=timestep * self.__temp_graph.get_granularity())),
