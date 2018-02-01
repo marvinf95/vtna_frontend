@@ -1587,7 +1587,6 @@ class TemporalGraphFigure(object):
         node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
 
         for timestep, graph in enumerate(self.__temp_graph):
-            frame = {'data': [], 'name': str(timestep)}
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
@@ -1612,11 +1611,8 @@ class TemporalGraphFigure(object):
                     'color': self.__color_map
                 }
             )
-            frame['data'] = [edge_trace, node_trace]
-            self.__figure_data['frames'].append(frame)
 
             used_node_ids = set()
-
             # Add edges to data
             for edge in graph.get_edges():
                 node1, node2 = edge.get_incident_nodes()
@@ -1624,30 +1620,29 @@ class TemporalGraphFigure(object):
                 if node1 in node_ids and node2 in node_ids:
                     x1, y1 = self.__layout[timestep][node1]
                     x2, y2 = self.__layout[timestep][node2]
-                    self.__figure_data['frames'][timestep]['data'][0]['x'].extend([x1, x2, None])
-                    self.__figure_data['frames'][timestep]['data'][0]['y'].extend([y1, y2, None])
-                    self.__figure_data['frames'][timestep]['data'][0]['ids'].append(
-                        str(timestep) + ':' + str(node1) + ',' + str(node2))
+                    edge_trace['x'].extend([x1, x2, None])
+                    edge_trace['y'].extend([y1, y2, None])
+                    edge_trace['ids'].extend(2*[str(timestep) + ':' + str(node1) + ',' + str(node2)])
+                    edge_trace['ids'].append('0')
                     # Add hover info
                     info_text = f"{node1} --- {node2}<br>Interaction Count: {edge.get_count()}"
-                    self.__figure_data['frames'][timestep]['data'][0]['text'].append(info_text)
+                    edge_trace['text'].extend([info_text]*3)
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
-            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
 
             if isinstance(self.__color_map, dict):
                 colors = [self.__color_map[node_id] for node_id in used_node_ids]
             else:
                 colors = self.__color_map
-            self.__figure_data['frames'][timestep]['data'][1]['marker']['color'] = colors
+            node_trace['marker']['color'] = colors
 
             # Add nodes to data
             for node_id in used_node_ids:
                 x, y = self.__layout[timestep][node_id]
-                self.__figure_data['frames'][timestep]['data'][1]['x'].append(x)
-                self.__figure_data['frames'][timestep]['data'][1]['y'].append(y)
-                self.__figure_data['frames'][timestep]['data'][1]['ids'].append(node_id)
+                node_trace['x'].append(x)
+                node_trace['y'].append(y)
+                node_trace['ids'].append(node_id)
 
                 # Add attribute info for hovering
                 info_text = f'<b style="color:#4caf50">ID:</b> {node_id}<br>'
@@ -1667,7 +1662,10 @@ class TemporalGraphFigure(object):
                 for attribute_name in local_attribute_names:
                     attribute_value = self.__temp_graph.get_node(node_id).get_local_attribute(attribute_name, timestep)
                     info_text += f"{attribute_name}: {attribute_value}<br>"
-                self.__figure_data['frames'][timestep]['data'][1]['text'].append(info_text)
+                node_trace['text'].append(info_text)
+
+            frame = {'data': [edge_trace, node_trace], 'name': str(timestep)}
+            self.__figure_data['frames'].append(frame)
 
             slider_step = {
                 'args': [
@@ -1683,6 +1681,7 @@ class TemporalGraphFigure(object):
             }
             self.__sliders_data['steps'].append(slider_step)
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
+
         self.__set_figure_data_as_initial_frame()
 
     def __recolor_displayed_nodes(self):
