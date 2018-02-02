@@ -1734,7 +1734,7 @@ class VideoExport(object):
                  progress_finished: typ.Callable):
         # We need the amount of frames and the counter for syncing the asynchron js writing
         # with the closing of the writer and the progress bar
-        frames = figure['frames']
+        self.__frames = figure['frames']
         self.__frame_count = time_range[1] - time_range[0]
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
@@ -1747,22 +1747,19 @@ class VideoExport(object):
             # GIF cant have more than 100 FPS
             speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
             duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
-                        frames[time_range[0]:time_range[1] + 1]]
+                        self.__frames[time_range[0]:time_range[1] + 1]]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
         self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
+        self.__build_index = 0
         self.__written_frames = 0
-        try:
-            for i in range(time_range[0], time_range[1]):
-                self.__build_frame(frames[i]['data'], i)
-                self.__increment_progress()
-        except Exception as e:
-            self.__writer.close()
-            # TODO: Show as user-friendly error message
-            print(e)
+        self.__output = widgets.Output(layout=widgets.Layout(display='none'))
+        ipydisplay.display(self.__output)
+        # Start building the frames
+        self.__build_frame()
 
     def __init_figure(self, steps):
         self.__figure = {'layout': {}}
@@ -1801,30 +1798,29 @@ class VideoExport(object):
             'steps': steps
         }]
 
-    def __build_frame(self, data, index):
+    def __build_frame(self):
         # Add current plot data (of this frame)
-        self.__figure['data'] = data
+        self.__figure['data'] = self.__frames[self.__build_index]['data']
         # Position dummy slider on current timestep
-        self.__figure['layout']['sliders'][0]['active'] = index
-        # noinspection PyTypeChecker
-        ipydisplay.display(ipydisplay.HTML(
-            # Wrap our plot with a hidden div
-            '<div hidden id="tmp-plotly-plot' + str(index) + '">'
-            # plot() returns the html div with the plot itself.
-            # Not including plotlyjs improves performance, and its already
-            # loaded in the notebook anyways.
-            + plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
-            # Execute the javascript that extracts the image.
-            # Then we remove above div again, for not
-            # causing memory leaks and easier access.
-            # See export.js for function implementations.
-            + f'''
-            </div>
-            <script>
-                extractPlotlyImage(); 
-                removePlot({str(index)});
-            </script>'''
-        ))
+        self.__figure['layout']['sliders'][0]['active'] = self.__build_index
+        with self.__output:
+            # noinspection PyTypeChecker
+            ipydisplay.display(ipydisplay.HTML(
+                # plot() returns the html div with the plot itself.
+                # Not including plotlyjs improves performance, and its already
+                # loaded in the notebook anyways.
+                plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
+                # Execute the javascript that extracts the image.
+                # See export.js for function implementations.
+                + f'''
+                <script>
+                    extractPlotlyImage(); 
+                </script>'''
+            ))
+            # Remove plot again to save memory
+            ipydisplay.clear_output()
+        self.__build_index += 1
+        self.__increment_progress()
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
     # can access this non-static method.
@@ -1838,6 +1834,10 @@ class VideoExport(object):
             self.__increment_progress()
             if self.__written_frames == self.__frame_count:
                 self.__finish()
+            else:
+                # The next frame is built after this method/the js code is done
+                # This prevents memory leaks caused by asynchronous execution
+                self.__build_frame()
         except Exception as e:
             self.__writer.close()
             # TODO: Show as user-friendly error message
