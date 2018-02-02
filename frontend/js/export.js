@@ -10,17 +10,6 @@ var callbacks = {
     }
 }
 
-var removePlot = function(id) {
-    var tmpPlot = document.getElementById("tmp-plotly-plot" + id);
-    if(tmpPlot != null) {
-        // Note that we remove the grandparent, because jupyter embeds the plot in other divs.
-        // Removing these will also prevent ugly whitespaces in the notebook
-        tmpPlot.parentElement.parentElement.parentElement.removeChild(tmpPlot.parentElement.parentElement);
-        // Probably not necessary I guess?
-        delete tmpPlot;
-    }
-}
-
 var extractPlotlyImage = function () {
     // Returns a Promise
     // We choose the second element with that class, because the first one

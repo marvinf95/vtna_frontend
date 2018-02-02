@@ -1756,7 +1756,7 @@ class VideoExport(object):
 
         self.__build_index = 0
         self.__written_frames = 0
-        self.__output = widgets.Output()
+        self.__output = widgets.Output(layout=widgets.Layout(display='none'))
         ipydisplay.display(self.__output)
         # Start building the frames
         self.__build_frame()
@@ -1804,27 +1804,21 @@ class VideoExport(object):
         # Position dummy slider on current timestep
         self.__figure['layout']['sliders'][0]['active'] = self.__build_index
         with self.__output:
-            ipydisplay.clear_output()
             # noinspection PyTypeChecker
             ipydisplay.display(ipydisplay.HTML(
-                # Wrap our plot with a hidden div
-                '<div hidden id="tmp-plotly-plot' + str(self.__build_index) + '">'
                 # plot() returns the html div with the plot itself.
                 # Not including plotlyjs improves performance, and its already
                 # loaded in the notebook anyways.
-                + plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
+                plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
                 # Execute the javascript that extracts the image.
-                # Then we remove above div again, for not
-                # causing memory leaks and easier access.
                 # See export.js for function implementations.
                 + f'''
-                </div>
                 <script>
-                    console.log("Extracting image");
                     extractPlotlyImage(); 
-                    //removePlot({str(self.__build_index)});
                 </script>'''
             ))
+            # Remove plot again to save memory
+            ipydisplay.clear_output()
         self.__build_index += 1
         self.__increment_progress()
 
