@@ -1834,7 +1834,6 @@ class VideoExport(object):
             img_binary = base64.decodebytes(img_base64)
             # Append binary png image to gif writer
             #self.__writer.append_data(imageio.imread(img_binary))
-            print("Frame written")
             imageio.imwrite("tmp/frame{}.png".format(self.__written_frames), imageio.imread(img_binary))
             self.__written_frames += 1
             self.__increment_progress()
