@@ -1750,7 +1750,7 @@ class VideoExport(object):
                         self.__frames[time_range[0]:time_range[1] + 1]]
         # Create the writer object for creating the gif.
         # Mode I tells the writer to prepare for multiple images.
-        #self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
@@ -1829,8 +1829,7 @@ class VideoExport(object):
             # Decode base64 string to binary
             img_binary = base64.decodebytes(img_base64)
             # Append binary png image to gif writer
-            #self.__writer.append_data(imageio.imread(img_binary))
-            imageio.imwrite("tmp/frame{}.png".format(self.__written_frames), imageio.imread(img_binary))
+            self.__writer.append_data(imageio.imread(img_binary))
             self.__written_frames += 1
             self.__increment_progress()
             if self.__written_frames == self.__frame_count:
@@ -1840,13 +1839,13 @@ class VideoExport(object):
                 # This prevents memory leaks caused by asynchronous execution
                 self.__build_frame()
         except Exception as e:
-            #self.__writer.close()
+            self.__writer.close()
             # TODO: Show as user-friendly error message
             print(e)
 
     def __finish(self):
         # Flushes and closes the writer
-        #self.__writer.close()
+        self.__writer.close()
         self.__progress_finished()
 
 
