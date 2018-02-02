@@ -1756,14 +1756,10 @@ class VideoExport(object):
 
         self.__build_index = 0
         self.__written_frames = 0
-        try:
-            for i in range(time_range[0], time_range[1]):
-                self.__build_frame()
-                self.__increment_progress()
-        except Exception as e:
-            #self.__writer.close()
-            # TODO: Show as user-friendly error message
-            print(e)
+        self.__output = widgets.Output()
+        ipydisplay.display(self.__output)
+        # Start building the frames
+        self.__build_frame()
 
     def __init_figure(self, steps):
         self.__figure = {'layout': {}}
@@ -1807,26 +1803,30 @@ class VideoExport(object):
         self.__figure['data'] = self.__frames[self.__build_index]['data']
         # Position dummy slider on current timestep
         self.__figure['layout']['sliders'][0]['active'] = self.__build_index
-        # noinspection PyTypeChecker
-        ipydisplay.display(ipydisplay.HTML(
-            # Wrap our plot with a hidden div
-            '<div hidden id="tmp-plotly-plot' + str(self.__build_index) + '">'
-            # plot() returns the html div with the plot itself.
-            # Not including plotlyjs improves performance, and its already
-            # loaded in the notebook anyways.
-            + plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
-            # Execute the javascript that extracts the image.
-            # Then we remove above div again, for not
-            # causing memory leaks and easier access.
-            # See export.js for function implementations.
-            + f'''
-            </div>
-            <script>
-                extractPlotlyImage(); 
-                removePlot({str(self.__build_index)});
-            </script>'''
-        ))
+        with self.__output:
+            ipydisplay.clear_output()
+            # noinspection PyTypeChecker
+            ipydisplay.display(ipydisplay.HTML(
+                # Wrap our plot with a hidden div
+                '<div hidden id="tmp-plotly-plot' + str(self.__build_index) + '">'
+                # plot() returns the html div with the plot itself.
+                # Not including plotlyjs improves performance, and its already
+                # loaded in the notebook anyways.
+                + plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
+                # Execute the javascript that extracts the image.
+                # Then we remove above div again, for not
+                # causing memory leaks and easier access.
+                # See export.js for function implementations.
+                + f'''
+                </div>
+                <script>
+                    console.log("Extracting image");
+                    extractPlotlyImage(); 
+                    //removePlot({str(self.__build_index)});
+                </script>'''
+            ))
         self.__build_index += 1
+        self.__increment_progress()
 
     # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
     # can access this non-static method.
@@ -1841,6 +1841,10 @@ class VideoExport(object):
             self.__increment_progress()
             if self.__written_frames == self.__frame_count:
                 self.__finish()
+            else:
+                # The next frame is built after this method/the js code is done
+                # This prevents memory leaks caused by asynchronous execution
+                self.__build_frame()
         except Exception as e:
             #self.__writer.close()
             # TODO: Show as user-friendly error message
