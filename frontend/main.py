@@ -619,7 +619,6 @@ class UIGraphDisplayManager(object):
             value=0,
             min=0,
             step=1,
-            description='Exporting:',
             bar_style='success',
             orientation='horizontal',
             layout=widgets.Layout(display='none')
@@ -815,6 +814,7 @@ class UIGraphDisplayManager(object):
     def __build_export_video(self) -> typ.Callable:
         def initialize_progressbar(steps):
             """Callback for setting max amount of progress steps and showing the progress bar"""
+            self.__export_progressbar.description = 'Exporting:'
             self.__export_progressbar.max = steps
             self.__export_progressbar.value = 0
             self.__export_progressbar.layout.display = 'inline-flex'
