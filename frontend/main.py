@@ -475,6 +475,7 @@ class UIGraphDisplayManager(object):
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox,
                  export_vbox: widgets.VBox,
+                 cumulative_hbox: widgets.HBox,
                  loading_indicator: 'LoadingIndicator',
                  style_manager: 'UIDefaultStyleOptionsManager'
                  ):
@@ -489,7 +490,10 @@ class UIGraphDisplayManager(object):
 
         self.__layout_vbox = layout_vbox
         self.__export_vbox = export_vbox
+        self.__cumulative_hbox = cumulative_hbox
         self.__loading_indicator = loading_indicator
+
+        self.__cumulative_checkbox = None
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
@@ -664,6 +668,17 @@ class UIGraphDisplayManager(object):
         self.__export_range_slider.options = options
         self.__export_range_slider.layout.display = 'inline-flex'
         self.__export_range_slider.index = (0, len(self.__temp_graph)-1)
+
+        self.__init_cumulative_option_widgets()
+
+    def __init_cumulative_option_widgets(self):
+        self.__cumulative_checkbox = widgets.Checkbox(
+            value=False,
+            description='Cumulative Graphs',
+            disabled=False,
+        )
+        self.__cumulative_checkbox.observe(self.__build_change_cumulative())
+        self.__cumulative_hbox.children = [self.__cumulative_checkbox]
 
     def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
         """Initializies the Query Manager."""
@@ -859,6 +874,18 @@ class UIGraphDisplayManager(object):
 
     def __stop_graph_loading(self):
         self.__loading_indicator.stop()
+
+    def __build_change_cumulative(self) -> typ.Callable:
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__start_graph_loading()
+                self.__cumulative_checkbox.disabled = True
+                self.__temp_graph.set_cumulative(self.__cumulative_checkbox.value)
+                self.__figure.recompute_figure()
+                self.display_graph()
+                self.__cumulative_checkbox.disabled = False
+                self.__stop_graph_loading()
+        return on_change
 
 
 class UIAttributeQueriesManager(object):
@@ -1559,6 +1586,9 @@ class TemporalGraphFigure(object):
     def get_figure(self) -> typ.Dict:
         return self.__figure_data
 
+    def recompute_figure(self):
+        self.__build_data_frames()
+
     def toggle_animate_transitions(self, animate_transitions: bool):
         """Toggles transition animation. Must be called before frames are built."""
         if animate_transitions:
@@ -2017,11 +2047,14 @@ class UIStatisticsManager(object):
         avg_degree = 0
         diameter = 0
         avg_clustering_coefficient = 0
-        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes,
-                                                               'total_edges': total_edges,
-                                                               'is_filtering': is_filtering,
-                                                               'is_highlighting': is_highlighting,
-                                                               'avg_degree': avg_degree,
-                                                               'diameter': diameter,
-                                                               'avg_clustering_coefficient': avg_clustering_coefficient})
+        html = pystache.render(self.__graph_summary_template,
+                               {
+                                   'total_nodes': total_nodes,
+                                   'total_edges': total_edges,
+                                   'is_filtering': is_filtering,
+                                   'is_highlighting': is_highlighting,
+                                   'avg_degree': avg_degree,
+                                   'diameter': diameter,
+                                   'avg_clustering_coefficient': avg_clustering_coefficient
+                               })
         self.__graph_summary_html.value = html
