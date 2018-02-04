@@ -623,9 +623,9 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
-        self.__export_format_dropdown.observe(self.__build_check_speedup_possible())
-        self.__export_frame_length_text.observe(self.__build_check_speedup_possible())
-        self.__export_speedup_empty_frames_checkbox.observe(self.__build_check_speedup_possible())
+        self.__export_format_dropdown.observe(self.__build_configure_export())
+        self.__export_frame_length_text.observe(self.__build_configure_export())
+        self.__export_speedup_empty_frames_checkbox.observe(self.__build_configure_export())
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
@@ -750,8 +750,8 @@ class UIGraphDisplayManager(object):
 
         return select_layout
 
-    def __build_check_speedup_possible(self) -> typ.Callable:
-        def check_speedup_possible(change):
+    def __build_configure_export(self) -> typ.Callable:
+        def on_configure_export(change):
             if change['type'] == 'change' and change['name'] == 'value':
                 if self.__export_format_dropdown.value == 'gif' and \
                         self.__export_frame_length_text.value / 10 < 0.01 and \
@@ -759,8 +759,13 @@ class UIGraphDisplayManager(object):
                     self.__export_speedup_warning.layout.display = 'inline-flex'
                 else:
                     self.__export_speedup_warning.layout.display = 'none'
+                # Speeding up on empty frames is only possible for gifs right now
+                if self.__export_format_dropdown.value == 'gif':
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'none'
 
-        return check_speedup_possible
+        return on_configure_export
 
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
