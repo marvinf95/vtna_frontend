@@ -580,8 +580,8 @@ class UIGraphDisplayManager(object):
 
     def __init_export_widgets(self):
         self.__export_format_dropdown = widgets.Dropdown(
-            options={'GIF': 1, 'MP4': 2},
-            value=1,
+            options={'GIF': 'gif', 'MP4': 'mp4', 'MOV': 'mov', 'AVI': 'avi'},
+            value='gif',
             description='Format:',
         )
         self.__export_frame_length_text = widgets.BoundedFloatText(
@@ -619,13 +619,13 @@ class UIGraphDisplayManager(object):
             value=0,
             min=0,
             step=1,
-            description='Exporting:',
             bar_style='success',
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
-        self.__export_frame_length_text.observe(self.__build_check_speedup_possible())
-        self.__export_speedup_empty_frames_checkbox.observe(self.__build_check_speedup_possible())
+        self.__export_format_dropdown.observe(self.__build_configure_export())
+        self.__export_frame_length_text.observe(self.__build_configure_export())
+        self.__export_speedup_empty_frames_checkbox.observe(self.__build_configure_export())
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
@@ -750,16 +750,22 @@ class UIGraphDisplayManager(object):
 
         return select_layout
 
-    def __build_check_speedup_possible(self) -> typ.Callable:
-        def check_speedup_possible(change):
+    def __build_configure_export(self) -> typ.Callable:
+        def on_configure_export(change):
             if change['type'] == 'change' and change['name'] == 'value':
-                if self.__export_frame_length_text.value / 10 < 0.01 and \
+                if self.__export_format_dropdown.value == 'gif' and \
+                        self.__export_frame_length_text.value / 10 < 0.01 and \
                         self.__export_speedup_empty_frames_checkbox.value:
                     self.__export_speedup_warning.layout.display = 'inline-flex'
                 else:
                     self.__export_speedup_warning.layout.display = 'none'
+                # Speeding up on empty frames is only possible for gifs right now
+                if self.__export_format_dropdown.value == 'gif':
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'none'
 
-        return check_speedup_possible
+        return on_configure_export
 
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
@@ -815,6 +821,7 @@ class UIGraphDisplayManager(object):
     def __build_export_video(self) -> typ.Callable:
         def initialize_progressbar(steps):
             """Callback for setting max amount of progress steps and showing the progress bar"""
+            self.__export_progressbar.description = 'Exporting:'
             self.__export_progressbar.max = steps
             self.__export_progressbar.value = 0
             self.__export_progressbar.layout.display = 'inline-flex'
@@ -838,6 +845,7 @@ class UIGraphDisplayManager(object):
         def export_video(_):
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
+                video_format=self.__export_format_dropdown.value,
                 frame_length=self.__export_frame_length_text.value,
                 time_range=self.__export_range_slider.index,
                 speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
@@ -1724,8 +1732,11 @@ class TemporalGraphFigure(object):
 
 
 class VideoExport(object):
+    ffmpeg_formats = ['mp4', 'mov', 'avi']
+
     def __init__(self,
                  figure: typ.Dict,
+                 video_format: str,
                  frame_length: float,
                  time_range: typ.Tuple[int, int],
                  speedup_empty_frames: bool,
@@ -1740,17 +1751,22 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
-        # Length of a GIF frame
-        duration = frame_length
-        # Compute speed up duration list
-        if speedup_empty_frames:
-            # GIF cant have more than 100 FPS
-            speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
-            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
-                        self.__frames[time_range[0]:time_range[1] + 1]]
-        # Create the writer object for creating the gif.
-        # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        if video_format == 'GIF':
+            # Length of a GIF frame
+            duration = frame_length
+            # Compute speed up duration list
+            if speedup_empty_frames:
+                # GIF cant have more than 100 FPS
+                speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
+                duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
+                            self.__frames[time_range[0]:time_range[1] + 1]]
+            # Create the writer object for creating the gif.
+            # Mode I tells the writer to prepare for multiple images.
+            self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        elif video_format in VideoExport.ffmpeg_formats:
+            self.__writer = imageio.get_writer('export.' + video_format, format='ffmpeg', mode='I', fps=1/frame_length)
+        else:
+            raise ValueError('Unknown format: ' + video_format)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
