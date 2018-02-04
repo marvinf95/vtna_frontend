@@ -877,8 +877,8 @@ class UIGraphDisplayManager(object):
             output = widgets.Output()
             ipydisplay.display(output)
             with output:
-                ipydisplay.display(ipydisplay.Javascript("var to = window.location.href.lastIndexOf('/') +1;var win = window.open(window.location.href.substring(0,to)+'export.gif', '_blank');"))          
-            # Hide progress bar after 5 seconds  
+                ipydisplay.display(ipydisplay.Javascript("var to = window.location.href.lastIndexOf('/') +1;var win = window.open(window.location.href.substring(0,to)+'export.gif', '_blank');"))
+            # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
         def __hide_progressbar():
@@ -2059,32 +2059,54 @@ class UIDefaultStyleOptionsManager(object):
 
 
 class UIStatisticsManager(object):
-
     def __init__(self,
+                 graph_header_hbox: widgets.HBox,
                  graph_summary_hbox: widgets.HBox,
                  node_summary_hbox: widgets.HBox,
                  node_search_vbox: widgets.VBox,
                  node_detailed_view_vbox: widgets.VBox,
-                 graph_summary_template_path: str
+                 graph_summary_template_path: str,
+                 graph_header_template_path: str
                  ):
         self.__graph_summary_html = widgets.HTML(layout=widgets.Layout(width='100%'))
+        self.__graph_header_html = widgets.HTML(layout=widgets.Layout(width='100%'))
         graph_summary_hbox.children = [self.__graph_summary_html]
+        graph_header_hbox.children = [self.__graph_header_html]
+
         self.__node_summary_html = widgets.HTML()
         node_summary_hbox.children = [self.__node_summary_html]
+
         with open(graph_summary_template_path) as f:
             self.__graph_summary_template = f.read()
+        with open(graph_header_template_path) as f:
+            self.__graph_header_template = f.read()
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
 
     def load(self, temp_graph: vtna.graph.TemporalGraph):
         self.__temp_graph = temp_graph
+        self.__display_graph_header()
         self.__display_graph_summary()
+
+    def __display_graph_header(self):
+        if self.__temp_graph is None:
+            return
+        total_nodes = len(self.__temp_graph.get_nodes())
+        total_edges = len(set(edge.get_incident_nodes()
+                              for graph in self.__temp_graph.__iter__() for edge in graph.get_edges()))
+        html = pystache.render(self.__graph_header_template,
+                               {
+                                   'total_nodes': total_nodes,
+                                   'total_edges': total_edges,
+                               })
+        self.__graph_header_html.value = html
 
     def __display_graph_summary(self):
         if self.__temp_graph is None:
             return
         total_nodes = len(self.__temp_graph.get_nodes())
-        total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
+        total_edges = len(set(edge.get_incident_nodes()
+                              for graph in self.__temp_graph.__iter__() for edge in graph.get_edges()))
         is_filtering = True
         is_highlighting = False
         avg_degree = 0
