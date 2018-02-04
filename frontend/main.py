@@ -580,7 +580,7 @@ class UIGraphDisplayManager(object):
 
     def __init_export_widgets(self):
         self.__export_format_dropdown = widgets.Dropdown(
-            options={'GIF': 'gif', 'MP4': 'mp4'},
+            options={'GIF': 'gif', 'MP4': 'mp4', 'MOV': 'mov', 'AVI': 'avi'},
             value='gif',
             description='Format:',
         )
@@ -1725,9 +1725,7 @@ class TemporalGraphFigure(object):
 
 
 class VideoExport(object):
-    ffmpeg_codecs = {
-        'mp4': 'mpeg4'
-    }
+    ffmpeg_formats = ['mp4', 'mov', 'avi']
 
     def __init__(self,
                  figure: typ.Dict,
@@ -1758,7 +1756,7 @@ class VideoExport(object):
             # Create the writer object for creating the gif.
             # Mode I tells the writer to prepare for multiple images.
             self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
-        elif video_format in VideoExport.ffmpeg_codecs:
+        elif video_format in VideoExport.ffmpeg_formats:
             self.__writer = imageio.get_writer('export.' + video_format, format='ffmpeg', mode='I', fps=1/frame_length)
         else:
             raise ValueError('Unknown format: ' + video_format)
