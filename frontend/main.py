@@ -623,6 +623,7 @@ class UIGraphDisplayManager(object):
             orientation='horizontal',
             layout=widgets.Layout(display='none')
         )
+        self.__export_format_dropdown.observe(self.__build_check_speedup_possible())
         self.__export_frame_length_text.observe(self.__build_check_speedup_possible())
         self.__export_speedup_empty_frames_checkbox.observe(self.__build_check_speedup_possible())
         self.__download_button.on_click(self.__build_export_video())
@@ -752,7 +753,8 @@ class UIGraphDisplayManager(object):
     def __build_check_speedup_possible(self) -> typ.Callable:
         def check_speedup_possible(change):
             if change['type'] == 'change' and change['name'] == 'value':
-                if self.__export_frame_length_text.value / 10 < 0.01 and \
+                if self.__export_format_dropdown.value == 'gif' and \
+                        self.__export_frame_length_text.value / 10 < 0.01 and \
                         self.__export_speedup_empty_frames_checkbox.value:
                     self.__export_speedup_warning.layout.display = 'inline-flex'
                 else:
