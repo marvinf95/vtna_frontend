@@ -580,8 +580,8 @@ class UIGraphDisplayManager(object):
 
     def __init_export_widgets(self):
         self.__export_format_dropdown = widgets.Dropdown(
-            options={'GIF': 'GIF', 'MP4': 'MP4'},
-            value='GIF',
+            options={'GIF': 'gif', 'MP4': 'mp4'},
+            value='gif',
             description='Format:',
         )
         self.__export_frame_length_text = widgets.BoundedFloatText(
@@ -1726,7 +1726,7 @@ class TemporalGraphFigure(object):
 
 class VideoExport(object):
     ffmpeg_codecs = {
-        'MP4': 'mpeg4'
+        'mp4': 'mpeg4'
     }
 
     def __init__(self,
