@@ -1578,7 +1578,7 @@ class TemporalGraphFigure(object):
             'xanchor': 'left',
             'currentvalue': {
                 'font': {'size': 20},
-                'prefix': 'Timestep: +',
+                'prefix': '+',
                 'suffix': ' hours',
                 'visible': True,
                 'xanchor': 'right'
