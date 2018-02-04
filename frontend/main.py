@@ -580,8 +580,8 @@ class UIGraphDisplayManager(object):
 
     def __init_export_widgets(self):
         self.__export_format_dropdown = widgets.Dropdown(
-            options={'GIF': 1, 'MP4': 2},
-            value=1,
+            options={'GIF': 'GIF', 'MP4': 'MP4'},
+            value='GIF',
             description='Format:',
         )
         self.__export_frame_length_text = widgets.BoundedFloatText(
@@ -838,6 +838,7 @@ class UIGraphDisplayManager(object):
         def export_video(_):
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
+                video_format=self.__export_format_dropdown.value,
                 frame_length=self.__export_frame_length_text.value,
                 time_range=self.__export_range_slider.index,
                 speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
@@ -1724,8 +1725,13 @@ class TemporalGraphFigure(object):
 
 
 class VideoExport(object):
+    ffmpeg_codecs = {
+        'MP4': 'mpeg4'
+    }
+
     def __init__(self,
                  figure: typ.Dict,
+                 video_format: str,
                  frame_length: float,
                  time_range: typ.Tuple[int, int],
                  speedup_empty_frames: bool,
@@ -1740,17 +1746,22 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
-        # Length of a GIF frame
-        duration = frame_length
-        # Compute speed up duration list
-        if speedup_empty_frames:
-            # GIF cant have more than 100 FPS
-            speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
-            duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
-                        self.__frames[time_range[0]:time_range[1] + 1]]
-        # Create the writer object for creating the gif.
-        # Mode I tells the writer to prepare for multiple images.
-        self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        if video_format == 'GIF':
+            # Length of a GIF frame
+            duration = frame_length
+            # Compute speed up duration list
+            if speedup_empty_frames:
+                # GIF cant have more than 100 FPS
+                speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
+                duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
+                            self.__frames[time_range[0]:time_range[1] + 1]]
+            # Create the writer object for creating the gif.
+            # Mode I tells the writer to prepare for multiple images.
+            self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        elif video_format in VideoExport.ffmpeg_codecs:
+            self.__writer = imageio.get_writer('export.' + video_format, format='ffmpeg', mode='I')
+        else:
+            raise ValueError('Unknown format: ' + video_format)
 
         self.__init_figure(figure['layout']['sliders'][0]['steps'])
 
