@@ -29,8 +29,25 @@ import vtna.utility
 from ipywidgets import widgets
 
 
+def help_widget(text) -> widgets.HTML:
+    help_icon = f'<img src="images/help.png" style="max-width: 16px;" alt="help icon" data-toggle="tooltip" title="{text}"/>'
+    return widgets.HTML(help_icon)
 
-# Not a good solution, but "solves" the global variable problem.
+
+# Global container for all help texts.
+HELP_TEXT = {
+    'graph_upload': "Graph: Please upload tab-separated values without header, "
+                    "see this example:\n\ntimestamp\t edge 1\t edge2\n6123720\t 12\t\t 5\n"
+                    "6123740\t 52\t\t 2\n...",
+    'metadata_upload': "Metadata: Please upload tab-separated values without header, "
+                       "see this example:\n\nnode\t attribute\t attribute\t\t..."
+                       "\n12\t\tgreen\t big\t\t\t...\n5\t\tred\t\t small\t\t...\n...",
+    'granularity': 'Granularity defines the width of time windows of each frame.\nHigh values will result in fewer '
+                   'frames with crowded graphs. Lower values will result in more frames with sparser graphs.'
+}
+
+
+# Not a good solution, but "solves" the global variable problem and replaces it with singletons basically.
 class UIDataUploadManager(object):
     NETWORK_UPLOAD_PLACEHOLDER = 'Enter URL -> Click Upload'  # type: str
     LOCAL_UPLOAD_PLACEHOLDER = 'Click on Upload -> Select file'  # type: str
@@ -389,8 +406,11 @@ class UIDataUploadManager(object):
 
         apply_granularity_button.on_click(update_granularity_and_graph_data_output)
 
+        granularity_help = help_widget(HELP_TEXT['granularity'])
+
         self.__graph_data__configuration_vbox.children = \
-            [widgets.HBox([granularity_bounded_int_text, granularity_label, apply_granularity_button])]
+            [widgets.HBox([granularity_bounded_int_text, granularity_label, granularity_help,
+                           apply_granularity_button])]
 
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
