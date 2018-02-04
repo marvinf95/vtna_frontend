@@ -6,12 +6,14 @@
         <button class="query-btn btn-toggle" onclick="switchQuery({{query_id}})">
             <i class="fa {{toggle_state}}"></i>
         </button>
-        <button class="query-btn btn-brush" onclick="paintQuery({{query_id}})">
-            <i class="fa fa-paint-brush"></i>
-        </button>
-        <span class="flt-element flt-row-bullet {{#is_filter}}filter-mode{{/is_filter}}"
-              style="background: {{color}};">
-        </span>
+        {{^is_filter}}
+            <button class="query-btn btn-brush" onclick="paintQuery({{query_id}})">
+                <i class="fa fa-paint-brush"></i>
+            </button>
+            <span class="flt-element flt-row-bullet {{#is_filter}}filter-mode{{/is_filter}}"
+                  style="background: {{color}};">
+            </span>
+        {{/is_filter}}
     </li>
     <li>
         <span class="flt-element flt-row-item {{#is_filter}}filter-mode{{/is_filter}}" style="color: {{color}};">

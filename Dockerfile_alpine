@@ -1,13 +1,14 @@
-FROM python:3.6
+FROM python:alpine3.6
 LABEL version="0.1" description="Installs the application of the VTNA project at the University Koblenz" maintainer="marvinforster@uni-koblenz.de"
 
 USER root
 
 # Update system and add required packages
-RUN apt-get -y update && apt-get -y upgrade
+RUN apk update && apk upgrade
+RUN apk add --no-cache pkgconfig freetype-dev libpng-dev gfortran gcc build-base openblas-dev
 
 # Create user named vtna
-RUN adduser --system --uid 1000 vtna 
+RUN adduser -D -u 1000 vtna 
 
 # Create folder for storing the data of the application
 RUN mkdir -p /usr/src/vtna/
@@ -15,6 +16,7 @@ WORKDIR /usr/src/vtna/
 
 # Copy the data for the package vtna
 COPY vtna ./vtna
+
 # Copy the data for the frontend and the jupyter notebook
 COPY frontend ./frontend
 RUN chown -R vtna:1000 /usr/src/vtna/

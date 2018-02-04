@@ -8,7 +8,7 @@ Forschungspraktikum at West Institute
 ### Installation
 Prerequisites:
 * Internet connection
-* Installed docker
+* [Installed docker](https://docs.docker.com/engine/installation/)
   * Running docker service
   * Docker CLI
 

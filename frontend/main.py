@@ -1,25 +1,34 @@
-import enum
 import os
+import sys
 import re
 import typing as typ
+import enum
+import collections
 import urllib
 import urllib.error
 
 import IPython.display as ipydisplay
-from IPython.core.display import display, HTML
 import fileupload
 import matplotlib.pyplot as plt
 import plotly.graph_objs
+import plotly
 import pystache
+import base64
+import imageio
+import threading
+import datetime
+import webbrowser
+
 import vtna.data_import
 import vtna.filter
 import vtna.graph
+import vtna.node_measure
 import vtna.layout
 import vtna.statistics
 import vtna.utility
 from ipywidgets import widgets
 
-        
+
 
 # Not a good solution, but "solves" the global variable problem.
 class UIDataUploadManager(object):
@@ -51,7 +60,8 @@ class UIDataUploadManager(object):
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
                  # Graph data configuration widgets
-                 graph_data_configuration_vbox: widgets.VBox  # Container, for configuration of graph data
+                 graph_data_configuration_vbox: widgets.VBox,  # Container, for configuration of graph data
+                 measures_select_box: widgets.Box  # Container, for selecting wanted measures
                  ):
         self.__run_button = run_button
         run_button.disabled = True
@@ -78,8 +88,15 @@ class UIDataUploadManager(object):
 
         self.__granularity = None
 
+        self.__measure_selection_checkboxes = None  # type: typ.Dict[str, widgets.Checkbox]
+
+        self.__order_enabled = {}  # type: Dict[int, boolean]
+
+        # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
+
+        self.__display_measure_selection(measures_select_box)
 
     def get_edge_list(self) -> typ.List[vtna.data_import.TemporalEdge]:
         return self.__edge_list
@@ -90,19 +107,26 @@ class UIDataUploadManager(object):
     def get_granularity(self) -> int:
         return self.__granularity
 
-    def set_attribute_order(self, order_dict: typ.Dict[int, typ.Dict[int, int]], order_enabled: typ.Dict[int, bool]):
-        for attribute_id, enabled in order_enabled.items():
-            if not enabled:
-                continue
-            attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+    def get_selected_measures(self) -> typ.Dict[str, bool]:
+        return dict([(name, checkbox.value) for name, checkbox in self.__measure_selection_checkboxes.items()])
+
+    def set_attribute_order(self, order_dict: typ.Dict[int, typ.List[str]]):
+        # Iterate over enabled attributes only
+        for attribute_id in [i for (i, e) in self.__order_enabled.items() if e]:
+            # On enabling ordinal, no attribute_order list is created, so we have
+            # to check first if we have to do anything at all
             if attribute_id in order_dict:
-                attribute_order = order_dict[attribute_id]
-            else:
-                # If no DragnDrop was performed, dict doesnt exist, so its initialized with default order
-                attribute_order = dict(enumerate(range(len(self.__metadata.get_categories(attribute_name)))))
-            order = [self.__metadata.get_categories(attribute_name)[attribute_order[i]] for i in
-                     sorted(attribute_order.keys())]
-            self.__metadata.order_categories(attribute_name, order)
+                attribute_name = self.__metadata.get_attribute_names()[attribute_id]
+                self.__metadata.order_categories(attribute_name, order_dict[attribute_id])
+
+    def toggle_order_enabled(self, id_: int, enabled: bool):
+        self.__order_enabled[id_] = enabled
+        attribute_name = self.__metadata.get_attribute_names()[id_]
+        if enabled:
+            # Set ordinal by ordering in default order
+            self.__metadata.order_categories(attribute_name, self.__metadata.get_categories(attribute_name))
+        else:
+            self.__metadata.remove_order(attribute_name)
 
     def build_on_toggle_upload_type(self) -> typ.Callable:
         # TODO: What is the type of change? Dictionary?
@@ -155,9 +179,9 @@ class UIDataUploadManager(object):
                     with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                         f.write(w.data)
                         self.__graph_data_text.value = w.filename
-                        # Import graph as edge list via vtna
-                        self.__edge_list = vtna.data_import.read_edge_table(
-                            UIDataUploadManager.UPLOAD_DIR + w.filename)
+                    # Import graph as edge list via vtna
+                    self.__edge_list = vtna.data_import.read_edge_table(
+                        UIDataUploadManager.UPLOAD_DIR + w.filename)
                 elif upload_origin is self.UploadOrigin.NETWORK:
                     file = self.__graph_data_text.value
                     self.__edge_list = vtna.data_import.read_edge_table(file)
@@ -169,6 +193,11 @@ class UIDataUploadManager(object):
                 self.display_graph_upload_error(error_msg)
             except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {file}'
+                self.display_graph_upload_error(error_msg)
+            except OSError:
+                error_msg = f'Error accessing {file}.'
+                if upload_origin is self.UploadOrigin.NETWORK:
+                    error_msg += " Check your internet access or try again later."
                 self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Columns 1-3 in {file} must be integers'
@@ -198,6 +227,8 @@ class UIDataUploadManager(object):
                 elif upload_origin is self.UploadOrigin.NETWORK:
                     file = self.__metadata_data_text.value
                     self.__metadata = vtna.data_import.MetadataTable(file)
+                # Initialize orders as disabled
+                self.__order_enabled = dict([(i, False) for i in range(len(self.__metadata.get_attribute_names()))])
                 self.__metadata_loading.stop()
                 self.__display_metadata_upload_summary()
                 # Display UI for configuring metadata
@@ -208,6 +239,11 @@ class UIDataUploadManager(object):
             except (urllib.error.HTTPError, urllib.error.URLError):
                 error_msg = f'Could not access URL {file}'
                 self.display_metadata_upload_error(error_msg)
+            except OSError:
+                error_msg = f'Error accessing {file}.'
+                if upload_origin is self.UploadOrigin.NETWORK:
+                    error_msg += " Check your internet access or try again later."
+                self.display_graph_upload_error(error_msg)
             except ValueError:
                 error_msg = f'Invalid format: Column 1 in {file} must be integer'
                 self.display_metadata_upload_error(error_msg)
@@ -253,7 +289,7 @@ class UIDataUploadManager(object):
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
-            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata))
+            table = ipydisplay.HTML(create_html_metadata_summary(self.__metadata, self.__order_enabled))
             ipydisplay.display_html(table)  # A tuple is expected as input, but then it won't work for some reason...
 
     def __open_column_config(self):
@@ -286,7 +322,9 @@ class UIDataUploadManager(object):
             button_style='primary',
             tooltip='Rename columns',
         )
-        self.__metadata_configuration_vbox.children += (rename_button,)
+        rename_hbox = widgets.HBox(layout=widgets.Layout(justify_content='flex-end'))
+        rename_hbox.children = [rename_button]
+        self.__metadata_configuration_vbox.children += (rename_hbox,)
 
         def apply_rename(_):
             to_rename = dict()
@@ -314,13 +352,15 @@ class UIDataUploadManager(object):
         self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
-            description='Granularity',
+            description='Granularity:',
             value=self.__granularity,
             min=update_delta,
             max=latest - earliest,
             step=update_delta,
+            layout=widgets.Layout(width="15em"),
             disabled=False
         )
+        granularity_label = widgets.Label(value='seconds', layout=widgets.Layout(margin="0em 1em 0em 0.2em"))
         apply_granularity_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -350,16 +390,33 @@ class UIDataUploadManager(object):
         apply_granularity_button.on_click(update_granularity_and_graph_data_output)
 
         self.__graph_data__configuration_vbox.children = \
-            [widgets.HBox([granularity_bounded_int_text, apply_granularity_button])]
+            [widgets.HBox([granularity_bounded_int_text, granularity_label, apply_granularity_button])]
+
+    def __display_measure_selection(self, container_box: widgets.Box):
+        # Reset internal widget dict
+        self.__measure_selection_checkboxes = {}
+        header = widgets.Output()
+        with header:
+            ipydisplay.display(ipydisplay.HTML("<h2>Available Measures:</h2>"))
+        widget_list = [header]
+        for measure_name in NodeMeasuresManager.node_measure_types:
+            self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
+                value=False,
+                description=NodeMeasuresManager.node_measure_types[measure_name].get_name(),
+                disabled=False
+            )
+            widget_list.append(self.__measure_selection_checkboxes[measure_name])
+        container_box.children = widget_list
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
     print('Total Edges:', len(edges))
-    print('Update Delta:', vtna.data_import.infer_update_delta(edges))
-    print('Time Interval:', vtna.data_import.get_time_interval_of_edges(edges))
+    print('Inferred Update Interval:', vtna.data_import.infer_update_delta(edges), 'seconds')
+    interval = vtna.data_import.get_time_interval_of_edges(edges)
+    print('Total Dataset Time:', str(datetime.timedelta(seconds=(interval[1]-interval[0]))), 'hours')
 
 
-def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> str:
+def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable, order_enabled: typ.Dict[int, bool]) -> str:
     col_names = metadata.get_attribute_names()
     categories = [metadata.get_categories(name) for name in col_names]
 
@@ -367,10 +424,10 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
     header_html = ""
     # Checkbox for toggling ordinal
     checkbox_html = """
-        <label><input type="checkbox" value="{}" onchange="toggleSortable(this)"> Ordinal</label>"""
+        <label><input type="checkbox" value="{value}" onchange="toggleSortable(this)" {checked}> Ordinal</label>"""
     for i, col_name in enumerate(col_names):
         # Create table header plus checkbox for ordering
-        header_html += f'<th>{col_name}<br>{checkbox_html.format(i)}</th>'
+        header_html += f'<th>{col_name}<br>{checkbox_html.format(value=i, checked="checked" if order_enabled[i] else "")}</th>'
     header_html = f'<tr>{header_html}</tr>'
 
     # Contains all attribute lists
@@ -379,11 +436,13 @@ def create_html_metadata_summary(metadata: vtna.data_import.MetadataTable) -> st
         list_width = max(map(len, category))
         # list of lis for every attribute category
         # TODO: Make width work to prevent resizing on D&D
-        li_list = [f'<li value="{element_id}" width = "{list_width}em">{category[element_id]}</li>' for element_id in
+        li_list = [f'<li width="{list_width}em">{category[element_id]}</li>' for element_id in
                    range(len(category))]
         # ul element of a category, attrlist class is for general styling, id is needed for
         # attaching the sortable js listener
-        ul = '<ul class="attrlist" id="attr_list{}">{}</ul>'.format(categories.index(category), ''.join(li_list))
+        ul = '<ul class="attrlist{sortable}" id="attr_list{id}">{lis}</ul>'
+        cat_id = categories.index(category)
+        ul = ul.format(sortable=" sortlist" if order_enabled[cat_id] else "", id=cat_id, lis=''.join(li_list))
         # Surround with td that aligns text at the top, otherwise it would be centered
         ul = f'<td style="vertical-align:top">{ul}</td>'
         body_html += ul
@@ -415,6 +474,8 @@ class UIGraphDisplayManager(object):
                  display_output: widgets.Output,
                  display_size: typ.Tuple[int, int],
                  layout_vbox: widgets.VBox,
+                 export_vbox: widgets.VBox,
+                 cumulative_hbox: widgets.HBox,
                  loading_indicator: 'LoadingIndicator',
                  style_manager: 'UIDefaultStyleOptionsManager'
                  ):
@@ -428,7 +489,11 @@ class UIGraphDisplayManager(object):
         self.__queries_manager = None  # type: UIAttributeQueriesManager
 
         self.__layout_vbox = layout_vbox
+        self.__export_vbox = export_vbox
+        self.__cumulative_hbox = cumulative_hbox
         self.__loading_indicator = loading_indicator
+
+        self.__cumulative_checkbox = None
 
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
         self.__update_delta = UIGraphDisplayManager.DEFAULT_UPDATE_DELTA  # type: int
@@ -436,15 +501,24 @@ class UIGraphDisplayManager(object):
 
         self.__layout_function = UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX]
 
-        self.__figure = None  # type: TemporalGraphFigure
+        self.__node_measure_manager = None  # type: NodeMeasuresManager
 
+        self.__figure = None  # type: TemporalGraphFigure
+        self.__video_export_manager = None  # type: VideoExport
+
+        self.__init_layout_selection_widgets()
+        self.__init_export_widgets()
+
+    def __init_layout_selection_widgets(self):
         layout_options = dict((func.name, func) for func in UIGraphDisplayManager.LAYOUT_FUNCTIONS)
+        # Calulate widget width for dropdown selection box and slider widgets
+        widget_width = f'{max(map(len, layout_options.keys())) + 1}rem'
         self.__layout_select = widgets.Dropdown(
             options=layout_options,
             value=UIGraphDisplayManager.LAYOUT_FUNCTIONS[UIGraphDisplayManager.DEFAULT_LAYOUT_IDX],
             description='Layout:',
             # Width of dropdown is based on maximal length of function name.
-            layout=widgets.Layout(width=f'{max(map(len, layout_options.keys())) + 1}rem')
+            layout=widgets.Layout(width=widget_width)
         )
         self.__layout_select.observe(self.__build_select_layout())
 
@@ -453,7 +527,7 @@ class UIGraphDisplayManager(object):
         self.__layout_description_output = widgets.Output()
         self.__display_layout_description()
 
-        parameter_widget_layout = widgets.Layout(width='50rem')
+        parameter_widget_layout = widgets.Layout(width=widget_width)
 
         # Hyperparameters of basic layouts
         self.__layout_parameter_nodedistance_slider = widgets.FloatSlider(
@@ -505,40 +579,122 @@ class UIGraphDisplayManager(object):
             button_style='primary',
             tooltip='Apply Layout',
         )
-
         self.__apply_layout_button.on_click(self.__build_apply_layout())
-
         self.__set_current_layout_widgets()
+
+    def __init_export_widgets(self):
+        self.__export_format_dropdown = widgets.Dropdown(
+            options={'GIF': 'gif', 'MP4': 'mp4', 'MOV': 'mov', 'AVI': 'avi'},
+            value='gif',
+            description='Format:',
+        )
+        self.__export_frame_length_text = widgets.BoundedFloatText(
+            value=0.5,
+            min=0.01,
+            max=10.0,
+            step=0.01,
+            description='Frame length:',
+            disabled=False
+        )
+        self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
+        self.__export_range_slider = widgets.SelectionRangeSlider(
+            options=[0],
+            description='Time range:',
+            display='none',
+            orientation='horizontal',
+            layout=widgets.Layout(width="90%")
+        )
+        self.__export_speedup_empty_frames_checkbox = widgets.Checkbox(
+            value=False,
+            description='Speed up empty frames',
+            disabled=False
+        )
+        self.__export_speedup_warning = widgets.HTML(
+            value='<span style="color:#FF3A19">Warning: Speed up will be limited because frame length is too short</span>',
+            layout=widgets.Layout(display='none')
+        )
+        self.__download_button = widgets.Button(
+            description='Export animation',
+            disabled=False,
+            button_style='primary',
+            tooltip='Download a video of the animated plot',
+        )
+        self.__export_progressbar = widgets.IntProgress(
+            value=0,
+            min=0,
+            step=1,
+            bar_style='success',
+            orientation='horizontal',
+            layout=widgets.Layout(display='none')
+        )
+        self.__export_format_dropdown.observe(self.__build_configure_export())
+        self.__export_frame_length_text.observe(self.__build_configure_export())
+        self.__export_speedup_empty_frames_checkbox.observe(self.__build_configure_export())
+        self.__download_button.on_click(self.__build_export_video())
+        self.__export_vbox.children = [
+            self.__export_format_dropdown,
+            self.__export_frame_length_box,
+            self.__export_range_slider,
+            widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
+            widgets.HBox([self.__download_button, self.__export_progressbar])
+        ]
 
     def init_temporal_graph(self,
                             edge_list: typ.List[vtna.data_import.TemporalEdge],
                             metadata: vtna.data_import.MetadataTable,
                             granularity: int,
-                            queries_manager: 'UIAttributeQueriesManager',
+                            selected_measures: typ.Dict[str, bool],
                             ):
         self.__temp_graph = vtna.graph.TemporalGraph(edge_list, metadata, granularity)
         layout = self.__compute_layout()
+
+        self.__node_measure_manager = NodeMeasuresManager(self.__temp_graph,
+                                                          [m for m, selected in selected_measures.items() if selected])
+        self.__node_measure_manager.add_all_to_graph()
+
         self.__figure = TemporalGraphFigure(temp_graph=self.__temp_graph,
                                             layout=layout,
                                             display_size=self.__display_size,
+                                            animate_transitions=not self.__layout_function.is_static,
                                             color_map=self.__style_manager.get_node_color(),
                                             edge_color=self.__style_manager.get_edge_color(),
                                             node_size=self.__style_manager.get_node_size(),
                                             edge_width=self.__style_manager.get_edge_width()
                                             )
         self.__update_delta = vtna.data_import.infer_update_delta(edge_list)
+
+        # Set options for time range slider of export and make it visible
+        options = [' ' + str(datetime.timedelta(seconds=timestep * self.__temp_graph.get_granularity())) + ' hours ' for timestep in range(len(self.__temp_graph))]
+        self.__export_range_slider.options = options
+        self.__export_range_slider.layout.display = 'inline-flex'
+        self.__export_range_slider.index = (0, len(self.__temp_graph)-1)
+
+        self.__init_cumulative_option_widgets()
+
+    def __init_cumulative_option_widgets(self):
+        self.__cumulative_checkbox = widgets.Checkbox(
+            value=False,
+            description='Cumulative Graphs',
+            disabled=False,
+        )
+        self.__cumulative_checkbox.observe(self.__build_change_cumulative())
+        self.__cumulative_hbox.children = [self.__cumulative_checkbox]
+
+    def init_queries_manager(self, queries_manager: 'UIAttributeQueriesManager'):
+        """Initializies the Query Manager."""
         self.__queries_manager = queries_manager
         self.__queries_manager.register_graph_display_manager(self)
 
     def display_graph(self):
+        plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False,
+                                            config={'scrollZoom': True},
+                                            show_link=False, output_type='div')
+        # Remove js code that would cause autoplay
+        plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "",
+                               plot_div_html)
         with self.__display_output:
             ipydisplay.clear_output()
-            pl1 = plotly.offline.plot(self.__figure.get_figure(), config={}, show_link=False, output_type='div')
-            pl1 = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "", pl1)
-            with self.__display_output:
-                ipydisplay.clear_output()
-                display(HTML(pl1))
-                
+            ipydisplay.display(ipydisplay.HTML(plot_div_html))
 
     def get_temporal_graph(self) -> vtna.graph.TemporalGraph:
         return self.__temp_graph
@@ -568,7 +724,7 @@ class UIGraphDisplayManager(object):
             self.__stop_graph_loading()
 
     def __display_layout_description(self):
-        description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_function.description)
+        description_html = '<p style="color: blue;">{}</p>'.format(self.__layout_select.value.description)
 
         with self.__layout_description_output:
             ipydisplay.clear_output()
@@ -585,6 +741,7 @@ class UIGraphDisplayManager(object):
             self.__layout_function = self.__layout_select.value
             layout = self.__compute_layout()
             # ... and update figure
+            self.__figure.toggle_animate_transitions(not self.__layout_function.is_static)
             self.__figure.update_layout(layout)
             # Enable button, restore old name
             self.__apply_layout_button.description = old_button_name
@@ -607,6 +764,23 @@ class UIGraphDisplayManager(object):
                 self.__apply_layout_button.disabled = False
 
         return select_layout
+
+    def __build_configure_export(self) -> typ.Callable:
+        def on_configure_export(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                if self.__export_format_dropdown.value == 'gif' and \
+                        self.__export_frame_length_text.value / 10 < 0.01 and \
+                        self.__export_speedup_empty_frames_checkbox.value:
+                    self.__export_speedup_warning.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_warning.layout.display = 'none'
+                # Speeding up on empty frames is only possible for gifs right now
+                if self.__export_format_dropdown.value == 'gif':
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'inline-flex'
+                else:
+                    self.__export_speedup_empty_frames_checkbox.layout.display = 'none'
+
+        return on_configure_export
 
     def __compute_layout(self):
         """Returns layout dependent on selected layout and hyperparameters"""
@@ -636,12 +810,13 @@ class UIGraphDisplayManager(object):
     def __set_current_layout_widgets(self):
         """Generates list of widgets for layout_vbox.children"""
         widget_list = list()
-        widget_list.append(widgets.HBox([self.__layout_select, self.__apply_layout_button]))
+        widget_list.append(self.__layout_select)
         if self.__layout_select.value in [
             vtna.layout.static_spring_layout,
             vtna.layout.flexible_spring_layout,
             vtna.layout.static_weighted_spring_layout,
-            vtna.layout.flexible_weighted_spring_layout
+            vtna.layout.flexible_weighted_spring_layout,
+            vtna.layout.chained_weighted_spring_layout
         ]:
             widget_list.extend([
                 self.__layout_parameter_nodedistance_slider,
@@ -655,8 +830,50 @@ class UIGraphDisplayManager(object):
                 self.__layout_parameter_PCA_repel_slider,
                 self.__layout_parameter_PCA_p_slider
             ])
-        widget_list.append(self.__layout_description_output)
+        widget_list.extend([self.__layout_description_output, self.__apply_layout_button])
         self.__layout_vbox.children = widget_list
+
+    def __build_export_video(self) -> typ.Callable:
+        def initialize_progressbar(steps):
+            """Callback for setting max amount of progress steps and showing the progress bar"""
+            self.__export_progressbar.description = 'Exporting:'
+            self.__export_progressbar.max = steps
+            self.__export_progressbar.value = 0
+            self.__export_progressbar.layout.display = 'inline-flex'
+
+        def increment_progress():
+            """Callback for incrementing progress by 1"""
+            self.__export_progressbar.value += 1
+
+        def progress_finished():
+            """Callback after progress is done. Shows text and hides the progress bar"""
+            self.__export_progressbar.description = 'Finished!'
+            # open file in explorer
+            local_files = ipydisplay.FileLink("./export.gif")
+            webbrowser.open('file://' + str(local_files))
+            # Hide progress bar after 5 seconds
+            threading.Timer(5.0, __hide_progressbar).start()
+
+        def __hide_progressbar():
+            self.__export_progressbar.layout.display = 'none'
+
+        def export_video(_):
+            self.__video_export_manager = VideoExport(
+                figure=self.__figure.get_figure(),
+                video_format=self.__export_format_dropdown.value,
+                frame_length=self.__export_frame_length_text.value,
+                time_range=self.__export_range_slider.index,
+                speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
+                initialize_progressbar=initialize_progressbar,
+                increment_progress=increment_progress,
+                progress_finished=progress_finished)
+
+        return export_video
+
+    # This is just a propagation method so the JS code/the notebook can access
+    # the non-static export manager.
+    def write_export_frame(self, img):
+        return self.__video_export_manager.write_frame(img)
 
     def __start_graph_loading(self):
         self.__loading_indicator.start()
@@ -666,25 +883,37 @@ class UIGraphDisplayManager(object):
     def __stop_graph_loading(self):
         self.__loading_indicator.stop()
 
+    def __build_change_cumulative(self) -> typ.Callable:
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__start_graph_loading()
+                self.__cumulative_checkbox.disabled = True
+                self.__temp_graph.set_cumulative(self.__cumulative_checkbox.value)
+                self.__figure.recompute_figure()
+                self.display_graph()
+                self.__cumulative_checkbox.disabled = False
+                self.__stop_graph_loading()
+        return on_change
+
 
 class UIAttributeQueriesManager(object):
-    def __init__(self, metadata: vtna.data_import.MetadataTable, queries_main_vbox: widgets.VBox,
+    def __init__(self, attribute_info: typ.Dict, queries_main_vbox: widgets.VBox,
                  filter_box_layout: widgets.Layout, query_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
-        self.__metadata = transform_metadata_to_queries_format(metadata)
-        self.__metadata_table = metadata
+        self.__attribute_info = attribute_info
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
 
         self.__attributes_dropdown = None  # type: widgets.Dropdown
         self.__nominal_value_dropdown = None  # type: widgets.Dropdown
-        self.__interval_value_int_slider = None  # type: widgets.Dropdown
+        self.__interval_value_float_slider = None  # type: widgets.Dropdown
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
         self.__color_picker = None  # type: widgets.ColorPicker
+        self.__color_picker_msg_html = None  # type: widgets.HTML
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
-        self.__add_new_filter_button = None  # type: widgets.Button
+        self.__add_new_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
         self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
         self.__queries_output_box = None  # type: widgets.Box
@@ -699,18 +928,18 @@ class UIAttributeQueriesManager(object):
         self.__highlight_queries = dict()  # type: typ.Dict
         self.__active_highlight_queries = list()  # type: typ.List[int]
 
-        if self.__metadata != {}:
+        if self.__attribute_info != {}:
             self.__build_queries_menu()
 
             self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
             self.__attributes_dropdown.observe(self.__build_on_attribute_change())
             self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
-            self.__add_new_filter_button.on_click(self.__build_add_query())
+            self.__add_new_query_button.on_click(self.__build_add_query())
             self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
-        attributes = list(self.__metadata.keys())
-        initial_attribute = self.__metadata[attributes[0]]
+        attributes = list(self.__attribute_info.keys())
+        initial_attribute = self.__attribute_info[attributes[0]]
         # Attribute drop down
         self.__attributes_dropdown = widgets.Dropdown(
             options=attributes,
@@ -720,30 +949,31 @@ class UIAttributeQueriesManager(object):
         )
         # Nominal dropdown
         self.__nominal_value_dropdown = widgets.Dropdown(
-            disabled=True if initial_attribute['type'] != 'N' else False,
-            options=initial_attribute['values'] if initial_attribute['type'] == 'N' else ['Range'],
-            value=initial_attribute['values'][0] if initial_attribute['type'] == 'N' else 'Range',
+            disabled=True if initial_attribute['measurement_type'] != 'N' else False,
+            options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'N' else ['Range'],
+            value=initial_attribute['categories'][0] if initial_attribute['measurement_type'] == 'N' else 'Range',
             description='Value:',
         )
         # Interval slider
-        self.__interval_value_int_slider = widgets.IntRangeSlider(
+        self.__interval_value_float_slider = widgets.FloatRangeSlider(
             description='Value:',
-            disabled=True if initial_attribute['type'] != 'I' else False,
-            value=[35, 52],
-            min=16,
-            max=65,
-            step=1,
+            disabled=True if initial_attribute['measurement_type'] != 'I' else False,
+            value=initial_attribute['range'] if initial_attribute['measurement_type'] == 'I' else (0, 0),
+            min=initial_attribute['range'][0] if initial_attribute['measurement_type'] == 'I' else 0,
+            max=initial_attribute['range'][1] if initial_attribute['measurement_type'] == 'I' else 1,
+            step=0.1,
             orientation='horizontal',
-            readout=False if initial_attribute['type'] != 'I' else True,
-            readout_format='d',
+            readout=False if initial_attribute['measurement_type'] != 'I' else True,
+            readout_format='.1f',
             layout=widgets.Layout(width='99%')
         )
         # Ordinal slider
         self.__ordinal_value_selection_range_slider = widgets.SelectionRangeSlider(
             description='Value:',
-            options=initial_attribute['values'] if initial_attribute['type'] == 'O' else ['N/A'],
-            index=(0, len(initial_attribute['values']) - 1) if initial_attribute['type'] == 'O' else (0, 0),
-            disabled=True if initial_attribute['type'] != 'O' else False,
+            options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'O' else ['N/A'],
+            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (
+            0, 0),
+            disabled=True if initial_attribute['measurement_type'] != 'O' else False,
             layout=widgets.Layout(width='99%')
         )
         # Colorpicker
@@ -753,8 +983,9 @@ class UIAttributeQueriesManager(object):
             description='Color:',
             disabled=False
         )
+        self.__color_picker.layout.display = 'flex-inline'
         # Add new filter
-        self.__add_new_filter_button = widgets.Button(
+        self.__add_new_query_button = widgets.Button(
             disabled=False,
             description='Add new query',
             button_style='success',
@@ -785,25 +1016,26 @@ class UIAttributeQueriesManager(object):
             value='NEW'
         )
         # display inputs depending on current initial data type
-        if initial_attribute['type'] == 'O':
+        if initial_attribute['measurement_type'] == 'O':
             self.__nominal_value_dropdown.layout.display = 'none'
-            self.__interval_value_int_slider.layout.display = 'none'
-        elif initial_attribute['type'] == 'I':
+            self.__interval_value_float_slider.layout.display = 'none'
+        elif initial_attribute['measurement_type'] == 'I':
             self.__nominal_value_dropdown.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
         else:
-            self.__interval_value_int_slider.layout.display = 'none'
+            self.__interval_value_float_slider.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
 
         # Msg for colorpicker
-        color_picker_msg_html = widgets.HTML(
-            value="<span style='color:#7f8c8d'> Use the <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
-                  "to change the color of a query</span>")
+        self.__color_picker_msg_html = widgets.HTML(
+            value="<span style='color:#7f8c8d'> Click <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
+                  "to change highlight color</span>")
+        self.__color_picker.layout.display = 'inline-flex'
         # Msg for add new clause
         self.__add_new_clause_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
                   "to add a clause to a query</span>")
-        # Hiding msg untill 'operation' != New/Not
+        # Hiding msg until 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
 
         # Apply queries to graph button
@@ -812,63 +1044,68 @@ class UIAttributeQueriesManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply Queries to Graph',
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
-        # Main toolbar : Operator, Add
-        main_toolbar_hbox = widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_filter_button,
-                                          self.__add_new_clause_msg_html],
-                                         layout=widgets.Layout(width='100%', flex_flow='row', align_items='stretch'))
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
-                                             self.__apply_to_graph_button])
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
+        # Main toolbar : Operator Dropdown, Add Query Button
+        main_toolbar_vbox = widgets.VBox(
+            [widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
+             self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
-            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_int_slider,
-             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker, color_picker_msg_html]),
-             main_toolbar_hbox])
+            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
+             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker,
+                                                                        self.__color_picker_msg_html]),
+             main_toolbar_vbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
+
         # Put created components into correct container
-        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box]
+        self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box,
+                                             self.__apply_to_graph_button]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
             if change['type'] == 'change' and change['name'] == 'value':
-                selected_attribute = self.__metadata[self.__attributes_dropdown.value]
-                if selected_attribute['type'] == 'N':  # Selected attribute is nominal
+                selected_attribute = self.__attribute_info[self.__attributes_dropdown.value]
+                if selected_attribute['measurement_type'] == 'N':  # Selected attribute is nominal
                     # Activate nominal value dropdown
-                    self.__nominal_value_dropdown.options = selected_attribute['values']
-                    self.__nominal_value_dropdown.value = selected_attribute['values'][0]
+                    self.__nominal_value_dropdown.options = selected_attribute['categories']
+                    self.__nominal_value_dropdown.value = selected_attribute['categories'][0]
                     self.__nominal_value_dropdown.disabled = False
                     self.__nominal_value_dropdown.layout.display = 'inline-flex'
                     # Hide interval and ordinal value sliders
                     # TODO: Not sure about these two lines, commented them out for now
                     # self.__interval_value_int_slider.disabled = True
                     # self.__interval_value_int_slider.readout = False
-                    self.__interval_value_int_slider.layout.display = 'none'
+                    self.__interval_value_float_slider.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
-                elif selected_attribute['type'] == 'I':  # Selected attribute is interval
+                elif selected_attribute['measurement_type'] == 'I':  # Selected attribute is interval
                     # Activate interval value slider
-                    self.__interval_value_int_slider.disabled = False
-                    self.__interval_value_int_slider.readout = True
-                    self.__interval_value_int_slider.value = selected_attribute['values']
-                    self.__interval_value_int_slider.min = min(selected_attribute['values'])
-                    self.__interval_value_int_slider.max = max(selected_attribute['values'])
-                    self.__interval_value_int_slider.layout.display = 'inline-flex'
+                    self.__interval_value_float_slider.disabled = False
+                    self.__interval_value_float_slider.readout = True
+                    # ipywidgets won't let us assign min > max, so we have to do this:
+                    self.__interval_value_float_slider.max = sys.maxsize
+                    self.__interval_value_float_slider.min = selected_attribute['range'][0]
+                    self.__interval_value_float_slider.max = selected_attribute['range'][1]
+                    self.__interval_value_float_slider.value = selected_attribute['range']
+                    self.__interval_value_float_slider.layout.display = 'inline-flex'
                     # Hide nominal dropdown and ordinal slider
                     self.__nominal_value_dropdown.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
-                elif selected_attribute['type'] == 'O':  # Selected attribute is ordinal
+                elif selected_attribute['measurement_type'] == 'O':  # Selected attribute is ordinal
                     # Activate ordinal value slider
                     self.__ordinal_value_selection_range_slider.disabled = False
                     self.__ordinal_value_selection_range_slider.readout = True
-                    self.__ordinal_value_selection_range_slider.options = selected_attribute['values']
-                    self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute) - 1)
+                    self.__ordinal_value_selection_range_slider.options = selected_attribute['categories']
+                    self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute['categories']) - 1)
                     self.__ordinal_value_selection_range_slider.layout.display = 'inline-flex'
                     # Hide nominal dropdown and interval slider
                     self.__nominal_value_dropdown.layout.display = 'none'
-                    self.__interval_value_int_slider.layout.display = 'none'
+                    self.__interval_value_float_slider.layout.display = 'none'
 
         return on_change
 
@@ -878,10 +1115,10 @@ class UIAttributeQueriesManager(object):
                 new_operator = self.__boolean_combination_dropdown.value
                 ipydisplay.display(ipydisplay.Javascript(f"je.setOperator('{new_operator}').adjustButtons();"))
                 if new_operator in ['NEW', 'NOT']:
-                    self.__add_new_filter_button.disabled = False
+                    self.__add_new_query_button.disabled = False
                     self.__add_new_clause_msg_html.layout.visibility = 'hidden'
                 else:
-                    self.__add_new_filter_button.disabled = True
+                    self.__add_new_query_button.disabled = True
                     self.__add_new_clause_msg_html.layout.visibility = 'visible'
 
         return on_change
@@ -916,7 +1153,7 @@ class UIAttributeQueriesManager(object):
             clause_ctx['operator_new'] = clause['operator'] == 'NEW'
             clause_ctx['operator'] = clause['operator']
             clause_ctx['attribute_name'] = clause['value'][0]
-            if self.__metadata[clause['value'][0]]['type'] == 'N':
+            if self.__attribute_info[clause['value'][0]]['measurement_type'] == 'N':
                 clause_ctx['is_nominal'] = True
                 clause_ctx['value'] = clause['value'][1]
             else:
@@ -930,9 +1167,9 @@ class UIAttributeQueriesManager(object):
         return html_string
 
     def __fetch_current_value(self) -> typ.Any:
-        attribute_type = self.__metadata[self.__attributes_dropdown.value]['type']
+        attribute_type = self.__attribute_info[self.__attributes_dropdown.value]['measurement_type']
         return {'N': self.__nominal_value_dropdown.value,  # string
-                'I': self.__interval_value_int_slider.value,  # tuple of 2 ints
+                'I': self.__interval_value_float_slider.value,  # tuple of 2 ints
                 'O': self.__ordinal_value_selection_range_slider.value  # tuple of 2 strings
                 }[attribute_type]
 
@@ -1033,6 +1270,12 @@ class UIAttributeQueriesManager(object):
             if change['type'] == 'change' and change['name'] == 'value':
                 ipydisplay.display(ipydisplay.Javascript("je.setMode('" + self.__filter_highlight_toggle_buttons.value
                                                          + "').switchMode();"))
+                if self.__filter_highlight_toggle_buttons.value == 'Highlight':
+                    self.__color_picker.layout.display = 'inline-flex'
+                    self.__color_picker_msg_html.layout.display = 'inline-flex'
+                elif self.__filter_highlight_toggle_buttons.value == 'Filter':
+                    self.__color_picker.layout.display = 'none'
+                    self.__color_picker_msg_html.layout.display = 'none'
                 # Redraw queries output completely
                 self.__construct_queries_from_scratch()
 
@@ -1089,13 +1332,13 @@ class UIAttributeQueriesManager(object):
     def get_node_filter(self) -> vtna.filter.NodeFilter:
         active_queries = dict((idx, query) for idx, query in self.__filter_queries.items()
                               if idx in self.__active_filter_queries)
-        node_filter = transform_queries_to_filter(active_queries, self.__metadata_table)
+        node_filter = transform_queries_to_filter(active_queries, self.__attribute_info)
         return node_filter
 
     def get_node_colors(self, temp_graph: vtna.graph.TemporalGraph, default_color: str) -> typ.Dict[int, str]:
         active_queries = dict((idx, query) for idx, query in self.__highlight_queries.items()
                               if idx in self.__active_highlight_queries)
-        node_colors = transform_queries_to_color_mapping(active_queries, self.__metadata_table, temp_graph,
+        node_colors = transform_queries_to_color_mapping(active_queries, self.__attribute_info, temp_graph,
                                                          default_color)
         return node_colors
 
@@ -1109,21 +1352,10 @@ class UIAttributeQueriesManager(object):
             manager.notify(self)
 
 
-def transform_metadata_to_queries_format(metadata: vtna.data_import.MetadataTable) -> typ.Dict[str, typ.Dict]:
-    if metadata is None:
-        result = dict()
-    else:
-        result = dict((name,
-                       {'type': 'O' if metadata.is_ordered(name) else 'N',
-                        'values': metadata.get_categories(name)})
-                      for name in metadata.get_attribute_names())
-    return result
-
-
-def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.MetadataTable) -> vtna.filter.NodeFilter:
+def transform_queries_to_filter(queries: typ.Dict, attribute_info: typ.Dict) -> vtna.filter.NodeFilter:
     clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
     for raw_clause in map(lambda t: t[1]['clauses'], sorted(queries.items(), key=lambda t: int(t[0]))):
-        clause = build_clause(raw_clause, metadata)
+        clause = build_clause(raw_clause, attribute_info)
         clauses.append(clause)
     result_filter = None
     for i, clause in enumerate(clauses):
@@ -1136,7 +1368,7 @@ def transform_queries_to_filter(queries: typ.Dict, metadata: vtna.data_import.Me
     return result_filter
 
 
-def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_import.MetadataTable,
+def transform_queries_to_color_mapping(queries: typ.Dict, attribute_info: typ.Dict,
                                        temp_graph: vtna.graph.TemporalGraph, default_color: str) \
         -> typ.Dict[int, str]:
     # Init all nodes with the default color
@@ -1144,18 +1376,18 @@ def transform_queries_to_color_mapping(queries: typ.Dict, metadata: vtna.data_im
     for raw_clauses in map(lambda t: t[1], sorted(queries.items(), key=lambda t: int(t[0]), reverse=True)):
         raw_clause = raw_clauses['clauses']
         color = raw_clauses['color']
-        clause = build_clause(raw_clause, metadata)
+        clause = build_clause(raw_clause, attribute_info)
         nodes_to_color = clause(temp_graph.get_nodes())
         for node_id in map(lambda n: n.get_id(), nodes_to_color):
             colors[node_id] = color
     return colors
 
 
-def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+def build_clause(raw_clause: typ.Dict, attribute_info: typ.Dict) \
         -> vtna.filter.NodeFilter:
     clause = None
     for raw_predicate in map(lambda t: t[1], sorted(raw_clause.items(), key=lambda t: int(t[0]))):
-        predicate = build_predicate(raw_predicate, metadata)
+        predicate = build_predicate(raw_predicate, attribute_info)
         node_filter = vtna.filter.NodeFilter(predicate)
         # Case distinction for different operators:
         op = raw_predicate['operator']
@@ -1177,26 +1409,86 @@ def build_clause(raw_clause: typ.Dict, metadata: vtna.data_import.MetadataTable)
     return clause
 
 
-def build_predicate(raw_predicate: typ.Dict, metadata: vtna.data_import.MetadataTable) \
+def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
         -> typ.Callable[[vtna.graph.TemporalNode], bool]:
     # TODO: Currently assumes only string type values. More case distinctions needed for more complex types.
+    # TODO: Can ordinal or nominal attributes be local as well?
     # build_predicate assumes correctness of the input in regards to measure type assumptions.
     # e.g. range type queries will only be made for truly ordinal or interval values.
     name, value = raw_predicate['value']
-    if isinstance(value, (list, tuple)):  # Range type
-        order = metadata.get_categories(name)
+    if attribute_info[name]['measurement_type'] == 'O':
+        order = attribute_info[name]['categories']
         lower_bound = vtna.filter.ordinal_attribute_greater_than_equal(name, value[0], order)
         inv_upper_bound = vtna.filter.ordinal_attribute_greater_than(name, value[1], order)
         pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
-    else:  # Equality
+    elif attribute_info[name]['measurement_type'] == 'I':
+        lower_bound = vtna.filter.interval_attribute_greater_than_equal(name, value[0])
+        inv_upper_bound = vtna.filter.interval_attribute_greater_than(name, value[1])
+        pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
+    elif attribute_info[name]['measurement_type'] == 'N':  # Equality
         pred = vtna.filter.categorical_attribute_equal(name, value)
     return pred
 
 
+class NodeMeasuresManager(object):
+    # A dictionary is used for easier returning of specific measures
+    node_measure_types = {
+        'LOCAL_DEGREE_CENTRALITY': vtna.node_measure.LocalDegreeCentrality,
+        'GLOGAL_DEGREE_CENTRALITY': vtna.node_measure.GlobalDegreeCentrality,
+        'LOCAL_BETWEENNESS_CENTRALITY': vtna.node_measure.LocalBetweennessCentrality,
+        'GLOBAL_BETWEENNESS_CENTRALITY': vtna.node_measure.GlobalBetweennessCentrality,
+        'LOCAL_CLOSENESS_CENTRALITY': vtna.node_measure.LocalClosenessCentrality,
+        'GLOBAL_CLOSENESS_CENTRALITY': vtna.node_measure.GlobalClosenessCentrality
+    }
+
+    def __init__(self, temporal_graph: vtna.graph.TemporalGraph, requested_node_measures: typ.List[str]):
+        """
+        Computes specified node measures without attaching them to the graph.
+
+        Args:
+            requested_node_measures: List of keyword strings of dictionary
+                UINodeMeasuresManager.node_measures
+        Raises:
+            DuplicateMeasuresError: If a measure is specified multiple times
+        """
+        self.__node_measures: typ.Dict[str, vtna.node_measure.NodeMeasure]
+
+        # Prevent duplicate measures
+        measure_type_counter = collections.Counter()
+        measure_type_counter.update(requested_node_measures)
+        duplicate_names = set(n for n, c in measure_type_counter.items() if c > 1)
+        if len(duplicate_names) > 0:
+            raise self.DuplicateMeasuresError(duplicate_names)
+
+        # Instantiate and compute node measures
+        self.__node_measures = dict(
+            [(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
+
+    def add_all_to_graph(self):
+        """Adds all currently computed node measures to the temporal graph."""
+        for nm in self.__node_measures.values():
+            nm.add_to_graph()
+
+    def get_node_measure(self, node_measure_type: str):
+        """Returns NodeMeasure object of provided type."""
+        return self.__node_measures[node_measure_type]
+
+    class DuplicateMeasuresError(ValueError):
+        def __init__(self, names: typ.Set[str]):
+            self.message = f'Node measures {", ".join(names)} are duplicates'
+            self.illegal_names = names
+
+
 class TemporalGraphFigure(object):
-    def __init__(self, temp_graph: vtna.graph.TemporalGraph, layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
-                 display_size: typ.Tuple[int, int], color_map: typ.Union[str, typ.Dict[int, str]], edge_color: str,
-                 node_size: float, edge_width: float):
+    def __init__(self,
+                 temp_graph: vtna.graph.TemporalGraph,
+                 layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
+                 display_size: typ.Tuple[int, int],
+                 animate_transitions: bool,
+                 color_map: typ.Union[str, typ.Dict[int, str]],
+                 edge_color: str,
+                 node_size: float,
+                 edge_width: float):
         self.__temp_graph = temp_graph
         # Retrieve nodes once to ensure same order
         self.__nodes = self.__temp_graph.get_nodes()
@@ -1211,6 +1503,8 @@ class TemporalGraphFigure(object):
         self.__figure_data = None  # type: typ.Dict
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
+        self.__transition_time = 300
+        self.toggle_animate_transitions(animate_transitions)
         self.__build_data_frames()
 
     def __init_figure_data(self):
@@ -1242,7 +1536,7 @@ class TemporalGraphFigure(object):
         self.__figure_data['layout']['sliders'] = {
             'args': [
                 'transition', {
-                    'duration': 400,
+                    'duration': self.__transition_time,
                     'easing': 'cubic-in-out',
                 }
             ],
@@ -1257,7 +1551,7 @@ class TemporalGraphFigure(object):
                     {
                         'args': [None, {'frame': {'duration': 500, 'redraw': False},
                                         'fromcurrent': True,
-                                        'transition': {'duration': 300, 'easing': 'quadratic-in-out'}}],
+                                        'transition': {'duration': self.__transition_time, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
                         'method': 'animate'
                     },
@@ -1284,11 +1578,12 @@ class TemporalGraphFigure(object):
             'xanchor': 'left',
             'currentvalue': {
                 'font': {'size': 20},
-                'prefix': 'Zeitpunkt:',
+                'prefix': '+',
+                'suffix': ' hours',
                 'visible': True,
                 'xanchor': 'right'
             },
-            'transition': {'duration': 300, 'easing': 'immediate'},
+            'transition': {'duration': self.__transition_time, 'easing': 'immediate'},
             'pad': {'b': 10, 't': 0},
             'len': 0.9,
             'x': 0.1,
@@ -1298,6 +1593,16 @@ class TemporalGraphFigure(object):
 
     def get_figure(self) -> typ.Dict:
         return self.__figure_data
+
+    def recompute_figure(self):
+        self.__build_data_frames()
+
+    def toggle_animate_transitions(self, animate_transitions: bool):
+        """Toggles transition animation. Must be called before frames are built."""
+        if animate_transitions:
+            self.__transition_time = 300
+        else:
+            self.__transition_time = 0
 
     def update_colors(self, color_map: typ.Union[str, typ.Dict[int, str]]):
         if self.__color_map != color_map:
@@ -1336,21 +1641,21 @@ class TemporalGraphFigure(object):
 
         node_ids = [node.get_id() for node in self.__node_filter(self.__temp_graph.get_nodes())]
 
-        for i, graph in enumerate(self.__temp_graph):
-            frame = {'data': [], 'name': str(i)}
+        for timestep, graph in enumerate(self.__temp_graph):
             edge_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
+                ids=[],
+                mode='lines',
                 line={
                     'width': self.__edge_width,
                     'color': self.__edge_color
-                },
-                hoverinfo='none',
-                mode='lines'
+                }
             )
             node_trace = plotly.graph_objs.Scatter(
                 x=[],
                 y=[],
+                ids=[],
                 text=[],
                 mode='markers',
                 hoverinfo='text',
@@ -1359,49 +1664,73 @@ class TemporalGraphFigure(object):
                     'color': self.__color_map
                 }
             )
-            frame['data'] = [edge_trace, node_trace]
-            self.__figure_data['frames'].append(frame)
 
             used_node_ids = set()
-
+            # Add edges to data
             for edge in graph.get_edges():
                 node1, node2 = edge.get_incident_nodes()
                 # Only display edges of visible nodes
                 if node1 in node_ids and node2 in node_ids:
-                    x1, y1 = self.__layout[i][node1]
-                    x2, y2 = self.__layout[i][node2]
-                    self.__figure_data['frames'][i]['data'][0]['x'].extend([x1, x2, None])
-                    self.__figure_data['frames'][i]['data'][0]['y'].extend([y1, y2, None])
+                    x1, y1 = self.__layout[timestep][node1]
+                    x2, y2 = self.__layout[timestep][node2]
+                    edge_trace['x'].extend([x1, x2, None])
+                    edge_trace['y'].extend([y1, y2, None])
+                    edge_trace['ids'].extend([node1, node2, 0])
                     # Only nodes with VISIBLE edges are displayed.
                     used_node_ids.add(node1)
                     used_node_ids.add(node2)
-            used_node_ids = list(filter(lambda n: n in used_node_ids, node_ids))
 
             if isinstance(self.__color_map, dict):
                 colors = [self.__color_map[node_id] for node_id in used_node_ids]
             else:
                 colors = self.__color_map
-            self.__figure_data['frames'][i]['data'][1]['marker']['color'] = colors
+            node_trace['marker']['color'] = colors
 
-            for node in used_node_ids:
-                x, y = self.__layout[i][node]
-                self.__figure_data['frames'][i]['data'][1]['x'].append(x)
-                self.__figure_data['frames'][i]['data'][1]['y'].append(y)
+            # Add nodes to data
+            for node_id in used_node_ids:
+                x, y = self.__layout[timestep][node_id]
+                node_trace['x'].append(x)
+                node_trace['y'].append(y)
+                node_trace['ids'].append(node_id)
+
+                # Add attribute info for hovering
+                info_text = f'<b style="color:#4caf50">ID:</b> {node_id}<br>'
+                # Add global attributes info
+                global_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if
+                                          info['scope'] == 'global']
+                if len(global_attribute_names) > 0:
+                    info_text += '<b style="color:#91dfff">Global:</b><br>'
+                for attribute_name in global_attribute_names:
+                    attribute_value = self.__temp_graph.get_node(node_id).get_global_attribute(attribute_name)
+                    info_text += f"{attribute_name}: {attribute_value}<br>"
+                # Add local attributes info
+                local_attribute_names = [n for (n, info) in self.__temp_graph.get_attributes_info().items() if
+                                         info['scope'] == 'local']
+                if len(local_attribute_names) > 0:
+                    info_text += '<b style="color:#91dfff">Local:</b><br>'
+                for attribute_name in local_attribute_names:
+                    attribute_value = self.__temp_graph.get_node(node_id).get_local_attribute(attribute_name, timestep)
+                    info_text += f"{attribute_name}: {attribute_value}<br>"
+                node_trace['text'].append(info_text)
+
+            frame = {'data': [edge_trace, node_trace], 'name': str(timestep)}
+            self.__figure_data['frames'].append(frame)
 
             slider_step = {
                 'args': [
-                    [i],
+                    [timestep],
                     {
                         'frame': {'duration': 300, 'redraw': False},
                         'mode': 'immediate',
-                        'transition': {'duration': 300}
+                        'transition': {'duration': self.__transition_time}
                     }
                 ],
-                'label': str(i),
+                'label': str(datetime.timedelta(seconds=timestep * self.__temp_graph.get_granularity())),
                 'method': 'animate'
             }
             self.__sliders_data['steps'].append(slider_step)
         self.__figure_data['layout']['sliders'] = [self.__sliders_data]
+
         self.__set_figure_data_as_initial_frame()
 
     def __recolor_displayed_nodes(self):
@@ -1430,6 +1759,140 @@ class TemporalGraphFigure(object):
     def __set_figure_data_as_initial_frame(self):
         # Call this method after completing changes in __figure_data
         self.__figure_data['data'] = self.__figure_data['frames'][0]['data'].copy()
+
+
+class VideoExport(object):
+    ffmpeg_formats = ['mp4', 'mov', 'avi']
+
+    def __init__(self,
+                 figure: typ.Dict,
+                 video_format: str,
+                 frame_length: float,
+                 time_range: typ.Tuple[int, int],
+                 speedup_empty_frames: bool,
+                 initialize_progressbar: typ.Callable,
+                 increment_progress: typ.Callable,
+                 progress_finished: typ.Callable):
+        # We need the amount of frames and the counter for syncing the asynchron js writing
+        # with the closing of the writer and the progress bar
+        self.__frames = figure['frames']
+        self.__frame_count = time_range[1] - time_range[0]
+        # There are two steps for every frame: Extracting via js and writing to gif
+        initialize_progressbar(self.__frame_count * 2)
+        self.__increment_progress = increment_progress  # type: typ.Callable
+        self.__progress_finished = progress_finished  # type: typ.Callable
+        if video_format == 'GIF':
+            # Length of a GIF frame
+            duration = frame_length
+            # Compute speed up duration list
+            if speedup_empty_frames:
+                # GIF cant have more than 100 FPS
+                speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
+                duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
+                            self.__frames[time_range[0]:time_range[1] + 1]]
+            # Create the writer object for creating the gif.
+            # Mode I tells the writer to prepare for multiple images.
+            self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+        elif video_format in VideoExport.ffmpeg_formats:
+            self.__writer = imageio.get_writer('export.' + video_format, format='ffmpeg', mode='I', fps=1/frame_length)
+        else:
+            raise ValueError('Unknown format: ' + video_format)
+
+        self.__init_figure(figure['layout']['sliders'][0]['steps'])
+
+        self.__build_index = 0
+        self.__written_frames = 0
+        self.__output = widgets.Output(layout=widgets.Layout(display='none'))
+        ipydisplay.display(self.__output)
+        # Start building the frames
+        self.__build_frame()
+
+    def __init_figure(self, steps):
+        self.__figure = {'layout': {}}
+        # First we build the layout of the plot that will be exported
+        # TODO: Layout should be at least partially dependent/copied from original plotly layout
+        self.__figure['layout']['width'] = 500
+        self.__figure['layout']['height'] = 500
+        self.__figure['layout']['showlegend'] = False
+        # Make plot more compact
+        self.__figure['layout']['margin'] = plotly.graph_objs.Margin(
+            t=30,
+            r=30,
+            b=30,
+            l=30,
+            pad=0
+        )
+        self.__figure['layout']['yaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        self.__figure['layout']['xaxis'] = {
+            'range': [-1.1, 1.1],
+            'ticks': '',
+            'showticklabels': False
+        }
+        self.__figure['layout']['sliders'] = [{
+            'currentvalue': {
+                'font': {'size': 20},
+                'prefix': 'Timestep: +',
+                'suffix': ' hours',
+                'visible': True,
+                'xanchor': 'right'
+            },
+            'pad': {'b': 10, 't': 20},
+            'steps': steps
+        }]
+
+    def __build_frame(self):
+        # Add current plot data (of this frame)
+        self.__figure['data'] = self.__frames[self.__build_index]['data']
+        # Position dummy slider on current timestep
+        self.__figure['layout']['sliders'][0]['active'] = self.__build_index
+        with self.__output:
+            # noinspection PyTypeChecker
+            ipydisplay.display(ipydisplay.HTML(
+                # plot() returns the html div with the plot itself.
+                # Not including plotlyjs improves performance, and its already
+                # loaded in the notebook anyways.
+                plotly.offline.plot(self.__figure, output_type='div', include_plotlyjs=False)
+                # Execute the javascript that extracts the image.
+                # See export.js for function implementations.
+                + f'''
+                <script>
+                    extractPlotlyImage(); 
+                </script>'''
+            ))
+            # Remove plot again to save memory
+            ipydisplay.clear_output()
+        self.__build_index += 1
+        self.__increment_progress()
+
+    # This has to be public, so the GraphDisplayManager/the Notebook/above JS code
+    # can access this non-static method.
+    def write_frame(self, img_base64):
+        try:
+            # Decode base64 string to binary
+            img_binary = base64.decodebytes(img_base64)
+            # Append binary png image to gif writer
+            self.__writer.append_data(imageio.imread(img_binary))
+            self.__written_frames += 1
+            self.__increment_progress()
+            if self.__written_frames == self.__frame_count:
+                self.__finish()
+            else:
+                # The next frame is built after this method/the js code is done
+                # This prevents memory leaks caused by asynchronous execution
+                self.__build_frame()
+        except Exception as e:
+            self.__writer.close()
+            # TODO: Show as user-friendly error message
+            print(e)
+
+    def __finish(self):
+        # Flushes and closes the writer
+        self.__writer.close()
+        self.__progress_finished()
 
 
 class LoadingIndicator(object):
@@ -1485,8 +1948,8 @@ class UIDefaultStyleOptionsManager(object):
     INIT_NODE_SIZE = 10.0
     INIT_EDGE_SIZE = 0.6
 
-    def __init__(self, options_hbox: widgets.HBox):
-        self.__options_hbox = options_hbox
+    def __init__(self, options_vbox: widgets.VBox):
+        self.__options_vbox = options_vbox
         self.__graph_display_managers = list()  # type: typ.List[UIGraphDisplayManager]
 
         self.__node_color_picker = widgets.ColorPicker(
@@ -1520,13 +1983,15 @@ class UIDefaultStyleOptionsManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply default style',
-            layout=widgets.Layout(width='6em')
+            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_changes_button.on_click(self.__build_on_change())
 
-        self.__options_hbox.children = [
-            widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
-            widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text]),
+        self.__options_vbox.children = [
+            widgets.HBox([
+                widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
+                widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
+            ]),
             widgets.VBox([self.__apply_changes_button])
         ]
 
@@ -1575,7 +2040,7 @@ class UIStatisticsManager(object):
                  node_detailed_view_vbox: widgets.VBox,
                  graph_summary_template_path: str
                  ):
-        self.__graph_summary_html = widgets.HTML()
+        self.__graph_summary_html = widgets.HTML(layout=widgets.Layout(width='100%'))
         graph_summary_hbox.children = [self.__graph_summary_html]
         self.__node_summary_html = widgets.HTML()
         node_summary_hbox.children = [self.__node_summary_html]
@@ -1593,5 +2058,19 @@ class UIStatisticsManager(object):
             return
         total_nodes = len(self.__temp_graph.get_nodes())
         total_edges = sum(vtna.statistics.total_edges_per_time_step(self.__temp_graph.__iter__()))
-        html = pystache.render(self.__graph_summary_template, {'total_nodes': total_nodes, 'total_edges': total_edges})
+        is_filtering = True
+        is_highlighting = False
+        avg_degree = 0
+        diameter = 0
+        avg_clustering_coefficient = 0
+        html = pystache.render(self.__graph_summary_template,
+                               {
+                                   'total_nodes': total_nodes,
+                                   'total_edges': total_edges,
+                                   'is_filtering': is_filtering,
+                                   'is_highlighting': is_highlighting,
+                                   'avg_degree': avg_degree,
+                                   'diameter': diameter,
+                                   'avg_clustering_coefficient': avg_clustering_coefficient
+                               })
         self.__graph_summary_html.value = html

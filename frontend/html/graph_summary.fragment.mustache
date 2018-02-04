@@ -1,10 +1,28 @@
-<table id="stats-table">
-    <tr>
-        <th>Nodes</th>
-        <td>{{total_nodes}}</td>
-    </tr>
-    <tr>
-        <th>Edges</th>
-        <td>{{total_edges}}</td>
-    </tr>
-</table>
+<h4 class="module-header"><span class="custom-icon network-icon" aria-hidden="true"></span> Network graph </h4>
+<div class="stat-header-wrapper">
+<ul class="stat-header">
+    <li>
+        <i class="fa fa-filter {{#is_filtering}}active{{/is_filtering}}" aria-hidden="true" title="Filter"></i>
+        <i class="fa fa-paint-brush {{#is_highlighting}}active{{/is_highlighting}}" aria-hidden="true" title="Highlight"></i>
+    </li>
+    <li>|</li>
+    <li>
+        <i class="fa fa-circle" aria-hidden="true" title="Nodes"></i>
+         {{total_nodes}}
+    </li>
+
+    <li>
+        <span class="edge-icon" title="Edges"></span>
+         {{total_edges}}
+    </li>
+    <li>
+         <span class="stat-text"> Average degree: </span> {{avg_degree}}
+    </li>
+    <li>
+        <span class="stat-text">  Network diameter: </span>  {{diameter}}
+    </li>
+    <li>
+         <span class="stat-text"> Average clustering coefficient: </span>  {{avg_clustering_coefficient}}
+    </li>
+</ul>
+</div>
