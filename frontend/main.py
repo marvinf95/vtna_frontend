@@ -73,6 +73,7 @@ class UIDataUploadManager(object):
                  network_graph_upload_button: widgets.Button,
                  graph_data_text: widgets.Text,
                  graph_data_output: widgets.Output,
+                 graph_hist_output: widgets.Output,
                  graph_data_loading: 'LoadingIndicator',
                  # Metadata upload widgets
                  local_metadata_file_upload: fileupload.FileUploadWidget,
@@ -94,6 +95,7 @@ class UIDataUploadManager(object):
         self.__network_graph_upload_button = network_graph_upload_button
         self.__graph_data_text = graph_data_text
         self.__graph_data_output = graph_data_output
+        self.__graph_hist_output = graph_hist_output
         self.__graph_data_loading = graph_data_loading
 
         self.__local_metadata_file_upload = local_metadata_file_upload
@@ -279,27 +281,38 @@ class UIDataUploadManager(object):
         with self.__graph_data_output:
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
+        with self.__graph_hist_output:
+            ipydisplay.clear_output()
 
     def __display_graph_upload_summary(self, prepend_msgs: typ.List[str] = None):
+        self.__graph_data_loading.start()
+        self.__graph_data_output.layout.display = 'none'
+        self.__graph_hist_output.layout.display = 'none'
         with self.__graph_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
             print_edge_stats(self.__edge_list)
-            # Collect/Generate data for edge histogram plot
-            earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
-            granularity = self.__granularity
-            title = f'Granularity: {granularity}'
-            histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
-            x = list(range(len(histogram)))
+        # Collect/Generate data for edge histogram plot
+        earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
+        granularity = self.__granularity
+        title = f'Interactions in bins of granularity {granularity} seconds'
+        histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
+        x = list(range(len(histogram)))
+        with self.__graph_hist_output:
+            ipydisplay.clear_output()
             # Plot edge histogram
-            plt.figure()
+            plt.figure(figsize=(14, 4))
             _ = plt.bar(list(range(len(histogram))), histogram)
             plt.title(title)
-            plt.ylabel('#edges')
+            plt.xlabel(f'time intervals of width {granularity}')
+            plt.ylabel('number of interactions')
             plt.xticks(x, [''] * len(x))
             plt.show()
+        self.__graph_data_output.layout.display = 'block'
+        self.__graph_hist_output.layout.display = 'block'
+        self.__graph_data_loading.stop()
 
     def display_metadata_upload_error(self, msg):
         with self.__metadata_data_output:
@@ -1963,6 +1976,7 @@ class LoadingIndicator(object):
     def start(self):
         """Shows the loading indicator."""
         with self.__output:
+            ipydisplay.clear_output()  # With this line duplicate calls of start will not destroy anything
             ipydisplay.display(ipydisplay.SVG(filename=LoadingIndicator.loading_images[self.__size]))
         self.__box.layout.display = 'flex'
 
