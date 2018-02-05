@@ -36,14 +36,23 @@ def help_widget(text) -> widgets.HTML:
 
 # Global container for all help texts.
 HELP_TEXT = {
-    'graph_upload': "Graph: Please upload tab-separated values without header, "
-                    "see this example:\n\ntimestamp\t edge 1\t edge2\n6123720\t 12\t\t 5\n"
-                    "6123740\t 52\t\t 2\n...",
-    'metadata_upload': "Metadata: Please upload tab-separated values without header, "
-                       "see this example:\n\nnode\t attribute\t attribute\t\t..."
-                       "\n12\t\tgreen\t big\t\t\t...\n5\t\tred\t\t small\t\t...\n...",
-    'granularity': 'Granularity defines the width of time windows of each frame.\nHigh values will result in fewer '
-                   'frames with crowded graphs. Lower values will result in more frames with sparser graphs.'
+    'graph_upload': "Interactions:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
+                    "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).\n"
+                    "All other columns are ignored.",
+    'metadata_upload': "Attributes:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
+                       "Col. 1: Node (int).\nFollowing columns are interpreted as nominal attributes.",
+    'granularity': 'Granularity: Width of time interval of each displayed frame.\n '
+                   'Interactions in each interval are aggregated.\n',
+    'column_ordinal_config': 'Select Ordinal to allow range queries for highlighting/filtering nodes.\n'
+                             'Drag and drop to change order of categories. Order is ASCENDING.'
+}
+
+TOOLTIP = {
+    'toggle_local_upload': 'Load file from local directory',
+    'toggle_network_upload': 'Load file from URL',
+    'graph_upload_button': 'Upload interactions over time',
+    'metadata_upload_button': 'Upload node attributes',
+    'back_to_import_button': 'Open Import view. Resets all graph display settings.'
 }
 
 
@@ -66,6 +75,7 @@ class UIDataUploadManager(object):
                  network_graph_upload_button: widgets.Button,
                  graph_data_text: widgets.Text,
                  graph_data_output: widgets.Output,
+                 graph_hist_output: widgets.Output,
                  graph_data_loading: 'LoadingIndicator',
                  # Metadata upload widgets
                  local_metadata_file_upload: fileupload.FileUploadWidget,
@@ -75,6 +85,7 @@ class UIDataUploadManager(object):
                  metadata_loading: 'LoadingIndicator',
                  # Metadata configuration widgets
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
+                 metadata_ordinal_help: widgets.HTML,
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
                  # Graph data configuration widgets
                  graph_data_configuration_vbox: widgets.VBox,  # Container, for configuration of graph data
@@ -87,6 +98,7 @@ class UIDataUploadManager(object):
         self.__network_graph_upload_button = network_graph_upload_button
         self.__graph_data_text = graph_data_text
         self.__graph_data_output = graph_data_output
+        self.__graph_hist_output = graph_hist_output
         self.__graph_data_loading = graph_data_loading
 
         self.__local_metadata_file_upload = local_metadata_file_upload
@@ -96,6 +108,8 @@ class UIDataUploadManager(object):
         self.__metadata_loading = metadata_loading
 
         self.__metadata_configuration_vbox = metadata_configuration_vbox
+        self.__metadata_ordinal_help = metadata_ordinal_help
+        self.__metadata_ordinal_help.layout.display = 'none'
         self.__column_configuration_layout = column_configuration_layout
 
         self.__graph_data__configuration_vbox = graph_data_configuration_vbox
@@ -276,27 +290,38 @@ class UIDataUploadManager(object):
         with self.__graph_data_output:
             ipydisplay.clear_output()
             print(f'\x1b[31m{msg}\x1b[0m')
+        with self.__graph_hist_output:
+            ipydisplay.clear_output()
 
     def __display_graph_upload_summary(self, prepend_msgs: typ.List[str] = None):
+        self.__graph_data_loading.start()
+        self.__graph_data_output.layout.display = 'none'
+        self.__graph_hist_output.layout.display = 'none'
         with self.__graph_data_output:
             ipydisplay.clear_output()
             if prepend_msgs is not None:
                 for msg in prepend_msgs:
                     print(msg)
             print_edge_stats(self.__edge_list)
-            # Collect/Generate data for edge histogram plot
-            earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
-            granularity = self.__granularity
-            title = f'Granularity: {granularity}'
-            histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
-            x = list(range(len(histogram)))
+        # Collect/Generate data for edge histogram plot
+        earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
+        granularity = self.__granularity
+        title = f'Interactions in bins of granularity {granularity} seconds'
+        histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
+        x = list(range(len(histogram)))
+        with self.__graph_hist_output:
+            ipydisplay.clear_output()
             # Plot edge histogram
-            plt.figure()
+            plt.figure(figsize=(14, 4))
             _ = plt.bar(list(range(len(histogram))), histogram)
             plt.title(title)
-            plt.ylabel('#edges')
+            plt.xlabel(f'time intervals of width {granularity}')
+            plt.ylabel('number of interactions')
             plt.xticks(x, [''] * len(x))
             plt.show()
+        self.__graph_data_output.layout.display = 'block'
+        self.__graph_hist_output.layout.display = 'block'
+        self.__graph_data_loading.stop()
 
     def display_metadata_upload_error(self, msg):
         with self.__metadata_data_output:
@@ -345,6 +370,8 @@ class UIDataUploadManager(object):
         rename_hbox = widgets.HBox(layout=widgets.Layout(justify_content='flex-end'))
         rename_hbox.children = [rename_button]
         self.__metadata_configuration_vbox.children += (rename_hbox,)
+
+        self.__metadata_ordinal_help.layout.display = 'block'
 
         def apply_rename(_):
             to_rename = dict()
@@ -1972,6 +1999,7 @@ class LoadingIndicator(object):
     def start(self):
         """Shows the loading indicator."""
         with self.__output:
+            ipydisplay.clear_output()  # With this line duplicate calls of start will not destroy anything
             ipydisplay.display(ipydisplay.SVG(filename=LoadingIndicator.loading_images[self.__size]))
         self.__box.layout.display = 'flex'
 
