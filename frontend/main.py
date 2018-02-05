@@ -107,7 +107,7 @@ class UIDataUploadManager(object):
 
         self.__measure_selection_checkboxes = None  # type: typ.Dict[str, widgets.Checkbox]
 
-        self.__order_enabled = {}  # type: Dict[int, boolean]
+        self.__order_enabled = {}  # type: typ.Dict[int, bool]
 
         # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
@@ -192,7 +192,6 @@ class UIDataUploadManager(object):
                 if upload_origin is self.UploadOrigin.LOCAL:
                     file = w.filename
                     # Upload and store file to notebook directory
-                    # TODO: put it into a tmp folder
                     with open(UIDataUploadManager.UPLOAD_DIR + w.filename, 'wb') as f:
                         f.write(w.data)
                         self.__graph_data_text.value = w.filename
@@ -337,7 +336,7 @@ class UIDataUploadManager(object):
             description='Rename',
             disabled=False,
             button_style='primary',
-            tooltip='Rename columns',
+            tooltip='Renames columns',
         )
         rename_hbox = widgets.HBox(layout=widgets.Layout(justify_content='flex-end'))
         rename_hbox.children = [rename_button]
@@ -382,7 +381,7 @@ class UIDataUploadManager(object):
             description='Apply',
             disabled=False,
             button_style='primary',
-            tooltip='Use selected granularity on graph',
+            tooltip='Apply selected granularity on graph',
         )
 
         def update_granularity_and_graph_data_output(_):
@@ -415,9 +414,7 @@ class UIDataUploadManager(object):
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
-        header = widgets.Output()
-        with header:
-            ipydisplay.display(ipydisplay.HTML("<h2>Available Measures:</h2>"))
+        header = widgets.HTML("<h2>Available Measures:</h2>")
         widget_list = [header]
         for measure_name in NodeMeasuresManager.node_measure_types:
             self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
