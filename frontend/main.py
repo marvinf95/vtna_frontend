@@ -42,7 +42,9 @@ HELP_TEXT = {
     'metadata_upload': "Attributes:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
                        "Col. 1: Node (int).\nFollowing columns are interpreted as nominal attributes.",
     'granularity': 'Granularity: Width of time interval of each displayed frame.\n '
-                   'Interactions in each interval are aggregated.\n'
+                   'Interactions in each interval are aggregated.\n',
+    'column_ordinal_config': 'Select Ordinal to allow range queries for highlighting/filtering nodes.\n'
+                             'Drag and drop to change order of categories. Order is ASCENDING.'
 }
 
 TOOLTIP = {
@@ -83,6 +85,7 @@ class UIDataUploadManager(object):
                  metadata_loading: 'LoadingIndicator',
                  # Metadata configuration widgets
                  metadata_configuration_vbox: widgets.VBox,  # Container, for configuration of each separate column
+                 metadata_ordinal_help: widgets.HTML,
                  column_configuration_layout: widgets.Layout,  # Layout, for each separate column configuration
                  # Graph data configuration widgets
                  graph_data_configuration_vbox: widgets.VBox,  # Container, for configuration of graph data
@@ -105,6 +108,8 @@ class UIDataUploadManager(object):
         self.__metadata_loading = metadata_loading
 
         self.__metadata_configuration_vbox = metadata_configuration_vbox
+        self.__metadata_ordinal_help = metadata_ordinal_help
+        self.__metadata_ordinal_help.layout.display = 'none'
         self.__column_configuration_layout = column_configuration_layout
 
         self.__graph_data__configuration_vbox = graph_data_configuration_vbox
@@ -361,6 +366,8 @@ class UIDataUploadManager(object):
         rename_hbox = widgets.HBox(layout=widgets.Layout(justify_content='flex-end'))
         rename_hbox.children = [rename_button]
         self.__metadata_configuration_vbox.children += (rename_hbox,)
+
+        self.__metadata_ordinal_help.layout.display = 'block'
 
         def apply_rename(_):
             to_rename = dict()
