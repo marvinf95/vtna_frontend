@@ -868,16 +868,14 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
-            '''
-            # open file in explorer
-            local_files = ipydisplay.FileLink("./export.gif")
-            webbrowser.open('file://' + str(local_files))
-            '''
             # open file in browser
-            output = widgets.Output()
-            ipydisplay.display(output)
-            with output:
-                ipydisplay.display(ipydisplay.Javascript("var to = window.location.href.lastIndexOf('/') +1;var win = window.open(window.location.href.substring(0,to)+'export.gif', '_blank');"))
+            js_output = widgets.Output()
+            ipydisplay.display(js_output)
+            with js_output:
+                ipydisplay.display(ipydisplay.Javascript("""
+                var to = window.location.href.lastIndexOf('/') +1;
+                window.open(window.location.href.substring(0,to)+'export.gif', '_blank');
+                """))
             # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
@@ -1808,7 +1806,7 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
-        if video_format == 'GIF' or video_format == 'gif':
+        if video_format == 'gif':
             # Length of a GIF frame
             duration = frame_length
             # Compute speed up duration list
