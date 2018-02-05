@@ -36,14 +36,21 @@ def help_widget(text) -> widgets.HTML:
 
 # Global container for all help texts.
 HELP_TEXT = {
-    'graph_upload': "Graph: Please upload tab-separated values without header, "
-                    "see this example:\n\ntimestamp\t edge 1\t edge2\n6123720\t 12\t\t 5\n"
-                    "6123740\t 52\t\t 2\n...",
-    'metadata_upload': "Metadata: Please upload tab-separated values without header, "
-                       "see this example:\n\nnode\t attribute\t attribute\t\t..."
-                       "\n12\t\tgreen\t big\t\t\t...\n5\t\tred\t\t small\t\t...\n...",
-    'granularity': 'Granularity defines the width of time windows of each frame.\nHigh values will result in fewer '
-                   'frames with crowded graphs. Lower values will result in more frames with sparser graphs.'
+    'graph_upload': "Interactions:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
+                    "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).\n"
+                    "All other columns are ignored.",
+    'metadata_upload': "Attributes:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
+                       "Col. 1: Node (int).\nFollowing columns are interpreted as nominal attributes.",
+    'granularity': 'Granularity: Width of time interval of each displayed frame.\n '
+                   'Interactions in each interval are aggregated.\n'
+}
+
+TOOLTIP = {
+    'toggle_local_upload': 'Load file from local directory',
+    'toggle_network_upload': 'Load file from URL',
+    'graph_upload_button': 'Upload interactions over time',
+    'metadata_upload_button': 'Upload node attributes',
+    'back_to_import_button': 'Open Import view. Resets all graph display settings.'
 }
 
 
