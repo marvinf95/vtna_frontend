@@ -109,6 +109,10 @@ class UIDataUploadManager(object):
 
         self.__order_enabled = {}  # type: typ.Dict[int, bool]
 
+        # Show hints as placeholders
+        self.__graph_data_text.placeholder = UIDataUploadManager.LOCAL_UPLOAD_PLACEHOLDER
+        self.__metadata_data_text.placeholder = UIDataUploadManager.LOCAL_UPLOAD_PLACEHOLDER
+
         # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
@@ -865,16 +869,19 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
-            '''
-            # open file in explorer
-            local_files = ipydisplay.FileLink("./export.gif")
-            webbrowser.open('file://' + str(local_files))
-            '''
-            # open file in browser
-            output = widgets.Output()
-            ipydisplay.display(output)
-            with output:
-                ipydisplay.display(ipydisplay.Javascript("var to = window.location.href.lastIndexOf('/') +1;var win = window.open(window.location.href.substring(0,to)+'export.gif', '_blank');"))
+            # Unlock buttons
+            self.__apply_layout_button.disabled = False
+            self.__queries_manager.get_apply_button().disabled = False
+            self.__style_manager.get_apply_button().disabled = False
+            self.__download_button.disabled = False
+            # Open file in browser
+            js_output = widgets.Output()
+            ipydisplay.display(js_output)
+            with js_output:
+                ipydisplay.display(ipydisplay.Javascript("""
+                var to = window.location.href.lastIndexOf('/') +1;
+                window.open(window.location.href.substring(0,to)+'export.gif', '_blank');
+                """))
             # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
 
@@ -882,6 +889,12 @@ class UIGraphDisplayManager(object):
             self.__export_progressbar.layout.display = 'none'
 
         def export_video(_):
+            # Lock buttons
+            self.__apply_layout_button.disabled = True
+            self.__queries_manager.get_apply_button().disabled = True
+            self.__style_manager.get_apply_button().disabled = True
+            self.__download_button.disabled = True
+            # Start export
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
                 video_format=self.__export_format_dropdown.value,
@@ -1375,6 +1388,9 @@ class UIAttributeQueriesManager(object):
         for manager in self.__graph_display_managers:
             manager.notify(self)
 
+    def get_apply_button(self):
+        return self.__apply_to_graph_button
+
 
 def transform_queries_to_filter(queries: typ.Dict, attribute_info: typ.Dict) -> vtna.filter.NodeFilter:
     clauses = list()  # type: typ.List[vtna.filter.NodeFilter]
@@ -1805,7 +1821,7 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
-        if video_format == 'GIF' or video_format == 'gif':
+        if video_format == 'gif':
             # Length of a GIF frame
             duration = frame_length
             # Compute speed up duration list
@@ -2041,6 +2057,9 @@ class UIDefaultStyleOptionsManager(object):
     def __absolute_all_size_inputs(self):
         self.__edge_size_float_text.value = abs(self.__edge_size_float_text.value)
         self.__node_size_float_text.value = abs(self.__node_size_float_text.value)
+
+    def get_apply_button(self):
+        return self.__apply_changes_button
 
     def get_node_color(self) -> str:
         return self.__node_color_picker.value
