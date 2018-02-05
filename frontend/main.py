@@ -109,6 +109,10 @@ class UIDataUploadManager(object):
 
         self.__order_enabled = {}  # type: Dict[int, boolean]
 
+        # Show hints as placeholders
+        self.__graph_data_text.placeholder = UIDataUploadManager.LOCAL_UPLOAD_PLACEHOLDER
+        self.__metadata_data_text.placeholder = UIDataUploadManager.LOCAL_UPLOAD_PLACEHOLDER
+
         # Make sure the upload directory exists, create it if necessary
         if not os.path.isdir(UIDataUploadManager.UPLOAD_DIR):
             os.mkdir(UIDataUploadManager.UPLOAD_DIR)
