@@ -868,7 +868,12 @@ class UIGraphDisplayManager(object):
         def progress_finished():
             """Callback after progress is done. Shows text and hides the progress bar"""
             self.__export_progressbar.description = 'Finished!'
-            # open file in browser
+            # Unlock buttons
+            self.__apply_layout_button.disabled = False
+            self.__queries_manager.get_apply_button().disabled = False
+            self.__style_manager.get_apply_button().disabled = False
+            self.__download_button.disabled = False
+            # Open file in browser
             js_output = widgets.Output()
             ipydisplay.display(js_output)
             with js_output:
@@ -883,6 +888,12 @@ class UIGraphDisplayManager(object):
             self.__export_progressbar.layout.display = 'none'
 
         def export_video(_):
+            # Lock buttons
+            self.__apply_layout_button.disabled = True
+            self.__queries_manager.get_apply_button().disabled = True
+            self.__style_manager.get_apply_button().disabled = True
+            self.__download_button.disabled = True
+            # Start export
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
                 video_format=self.__export_format_dropdown.value,
@@ -1375,6 +1386,9 @@ class UIAttributeQueriesManager(object):
     def __notify_all(self):
         for manager in self.__graph_display_managers:
             manager.notify(self)
+
+    def get_apply_button(self):
+        return self.__apply_to_graph_button
 
 
 def transform_queries_to_filter(queries: typ.Dict, attribute_info: typ.Dict) -> vtna.filter.NodeFilter:
@@ -2042,6 +2056,9 @@ class UIDefaultStyleOptionsManager(object):
     def __absolute_all_size_inputs(self):
         self.__edge_size_float_text.value = abs(self.__edge_size_float_text.value)
         self.__node_size_float_text.value = abs(self.__node_size_float_text.value)
+
+    def get_apply_button(self):
+        return self.__apply_changes_button
 
     def get_node_color(self) -> str:
         return self.__node_color_picker.value
