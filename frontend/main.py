@@ -30,21 +30,34 @@ from ipywidgets import widgets
 
 
 def help_widget(text) -> widgets.HTML:
-    help_icon = f'<img src="images/help.png" style="max-width: 16px;" alt="help icon" data-toggle="tooltip" title="{text}"/>'
+    help_icon = f'<img class="helpwidget" ' \
+                f'     title="{text}" ' \
+                f'     onload="helpwidget_onload(this)" ' \
+                f'     onmouseover="helpwidget_onmouseover(this)" ' \
+                f'     onclick="helpwidget_onclick(this)" ' \
+                f'     onmouseout="helpwidget_onmouseout(this)" ' \
+                f'     src="images/help.png" ' \
+                f'     style="max-width: 16px;" ' \
+                f'     alt="help icon"/>'
     return widgets.HTML(help_icon)
 
 
 # Global container for all help texts.
 HELP_TEXT = {
-    'graph_upload': "Interactions:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
-                    "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).\n"
+    'graph_upload': "<b>Interactions</b>:<br>"
+                    "Tab/Whitespace-separated as text or compressed.<br>"
+                    "No header.<br>"
+                    "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).<br>"
                     "All other columns are ignored.",
-    'metadata_upload': "Attributes:\nTab/Whitespace-separated as text or compressed.\nNo header.\n"
-                       "Col. 1: Node (int).\nFollowing columns are interpreted as nominal attributes.",
-    'granularity': 'Granularity: Width of time interval of each displayed frame.\n '
-                   'Interactions in each interval are aggregated.\n',
-    'column_ordinal_config': 'Select Ordinal to allow range queries for highlighting/filtering nodes.\n'
-                             'Drag and drop to change order of categories. Order is ASCENDING.'
+    'metadata_upload': "<b>Attributes</b>:<br>"
+                       "Tab/Whitespace-separated as text or compressed.<br>"
+                       "No header.<br>"
+                       "Col. 1: Node (int).<br>"
+                       "Following columns are interpreted as nominal attributes.",
+    'granularity': '<b>Granularity</b>: Width of time interval of each displayed frame.<br> '
+                   'Interactions in each interval are aggregated.<br>',
+    'column_ordinal_config': 'Select <b>Ordinal</b> to allow range queries for highlighting/filtering nodes.<br>'
+                             'Drag and drop to change order of categories. Order is <em>ascending</em>.'
 }
 
 TOOLTIP = {
