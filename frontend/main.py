@@ -53,7 +53,7 @@ HELP_TEXT = {
                        "No header.<br>"
                        "Col. 1: Node (int).<br>"
                        "Following columns are interpreted as nominal attributes.",
-    'granularity': '<b>Granularity</b>: Width of time interval of each displayed frame.<br> '
+    'granularity': '<b>Interval length</b>: Width of time interval of each displayed frame.<br> '
                    'Interactions in each interval are aggregated.<br>',
     'column_ordinal_config': 'Select <b>Ordinal</b> to allow range queries for highlighting/filtering nodes.<br>'
                              'Drag and drop to change order of categories. Order is <em>ascending</em>.'
@@ -318,7 +318,7 @@ class UIDataUploadManager(object):
         # Collect/Generate data for edge histogram plot
         earliest, _ = vtna.data_import.get_time_interval_of_edges(self.__edge_list)
         granularity = self.__granularity
-        title = f'Interactions in bins of granularity {granularity} seconds'
+        title = f'Interactions in interval bins of length {granularity} seconds'
         histogram = vtna.statistics.histogram_edges(self.__edge_list, granularity)
         x = list(range(len(histogram)))
         with self.__graph_hist_output:
@@ -327,8 +327,8 @@ class UIDataUploadManager(object):
             plt.figure(figsize=(14, 4))
             _ = plt.bar(list(range(len(histogram))), histogram)
             plt.title(title)
-            plt.xlabel(f'time intervals of width {granularity}')
-            plt.ylabel('number of interactions')
+            plt.xlabel(f'Time intervals of length {granularity} seconds')
+            plt.ylabel('Number of interactions')
             plt.xticks(x, [''] * len(x))
             plt.show()
         self.__graph_data_output.layout.display = 'block'
@@ -419,7 +419,7 @@ class UIDataUploadManager(object):
         self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
-            description='Granularity:',
+            description='Interval length:',
             value=self.__granularity,
             min=update_delta,
             max=latest - earliest,
