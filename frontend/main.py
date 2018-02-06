@@ -408,6 +408,14 @@ class UIDataUploadManager(object):
         update_delta = vtna.data_import.infer_update_delta(self.__edge_list)
         self.__granularity = update_delta * 100
 
+        # Maps time unit strings to corresponding length in seconds
+        time_unit_dict = {
+            'seconds': 1,
+            'minutes': 60,
+            'hours': 60*60,
+            'days': 60*60*24
+        }
+
         self.__run_button.disabled = False
 
         granularity_bounded_int_text = widgets.BoundedIntText(
@@ -419,7 +427,11 @@ class UIDataUploadManager(object):
             layout=widgets.Layout(width="15em"),
             disabled=False
         )
-        granularity_label = widgets.Label(value='seconds', layout=widgets.Layout(margin="0em 1em 0em 0.2em"))
+        granularity_unit_dropdown = widgets.Dropdown(
+            options=time_unit_dict,
+            value=time_unit_dict['seconds'],
+            layout=widgets.Layout(width="10em")
+        )
         apply_granularity_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -439,7 +451,7 @@ class UIDataUploadManager(object):
                 error_msg = f'\x1b[31m{granularity_bounded_int_text.value} is an invalid granularity\x1b[0m'
                 extra_msgs.append(error_msg)
             else:
-                self.__granularity = granularity_bounded_int_text.value
+                self.__granularity = granularity_bounded_int_text.value * granularity_unit_dropdown.value
                 self.__run_button.disabled = False
             self.__display_graph_upload_summary(prepend_msgs=extra_msgs)
 
@@ -451,7 +463,7 @@ class UIDataUploadManager(object):
         granularity_help = help_widget(HELP_TEXT['granularity'])
 
         self.__graph_data__configuration_vbox.children = \
-            [widgets.HBox([granularity_bounded_int_text, granularity_label, granularity_help,
+            [widgets.HBox([granularity_bounded_int_text, granularity_unit_dropdown, granularity_help,
                            apply_granularity_button])]
 
     def __display_measure_selection(self, container_box: widgets.Box):
