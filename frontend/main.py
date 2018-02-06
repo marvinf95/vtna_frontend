@@ -439,19 +439,39 @@ class UIDataUploadManager(object):
             tooltip='Apply selected granularity on graph',
         )
 
+        def update_granularity_step(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                if granularity_unit_dropdown.value == time_unit_dict['seconds']:
+                    granularity_bounded_int_text.min = update_delta
+                    granularity_bounded_int_text.max = latest - earliest
+                    granularity_bounded_int_text.step = update_delta
+                    granularity_bounded_int_text.value = update_delta * 100
+                else:
+                    # TODO: Minimum and step should be dependent on update_delta
+                    # The problem is that an update_delta of e.g. 100 seconds would
+                    # result in a step of 1.6666... for minutes
+                    granularity_bounded_int_text.min = 1
+                    granularity_bounded_int_text.max = (latest - earliest) / granularity_unit_dropdown.value
+                    granularity_bounded_int_text.step = 1
+                    granularity_bounded_int_text.value = 1
+
+        granularity_unit_dropdown.observe(update_granularity_step)
+
         def update_granularity_and_graph_data_output(_):
             apply_granularity_button.disabled = True
             old_name = apply_granularity_button.description
             apply_granularity_button.description = 'Loading...'
 
+            new_granularity = granularity_bounded_int_text.value * granularity_unit_dropdown.value
+
             extra_msgs = []
-            if (granularity_bounded_int_text.value < update_delta or
-                    granularity_bounded_int_text.value > latest - earliest or
-                    granularity_bounded_int_text.value % update_delta != 0):
+            if (new_granularity < update_delta or
+                    new_granularity > latest - earliest or
+                    new_granularity % update_delta != 0):
                 error_msg = f'\x1b[31m{granularity_bounded_int_text.value} is an invalid granularity\x1b[0m'
                 extra_msgs.append(error_msg)
             else:
-                self.__granularity = granularity_bounded_int_text.value * granularity_unit_dropdown.value
+                self.__granularity = new_granularity
                 self.__run_button.disabled = False
             self.__display_graph_upload_summary(prepend_msgs=extra_msgs)
 
