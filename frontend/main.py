@@ -1,29 +1,28 @@
-import os
-import sys
-import re
-import typing as typ
-import enum
+import base64
 import collections
+import datetime
+import enum
+import os
+import re
+import sys
+import threading
+import time
+import typing as typ
 import urllib
 import urllib.error
 
 import IPython.display as ipydisplay
 import fileupload
-import matplotlib.pyplot as plt
-import plotly.graph_objs
-import plotly
-import pystache
-import base64
 import imageio
-import threading
-import datetime
-import webbrowser
-
+import matplotlib.pyplot as plt
+import plotly
+import plotly.graph_objs
+import pystache
 import vtna.data_import
 import vtna.filter
 import vtna.graph
-import vtna.node_measure
 import vtna.layout
+import vtna.node_measure
 import vtna.statistics
 import vtna.utility
 from ipywidgets import widgets
@@ -918,9 +917,10 @@ class UIGraphDisplayManager(object):
             js_output = widgets.Output()
             ipydisplay.display(js_output)
             with js_output:
-                ipydisplay.display(ipydisplay.Javascript("""
+                output_path = self.__video_export_manager.get_output_path()
+                ipydisplay.display(ipydisplay.Javascript(f"""
                 var to = window.location.href.lastIndexOf('/') +1;
-                window.open(window.location.href.substring(0,to)+'export.gif', '_blank');
+                window.open(window.location.href.substring(0,to)+'{output_path}', '_blank');
                 """))
             # Hide progress bar after 5 seconds
             threading.Timer(5.0, __hide_progressbar).start()
@@ -1861,6 +1861,8 @@ class VideoExport(object):
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
         self.__progress_finished = progress_finished  # type: typ.Callable
+        self.__export_filename = time.strftime('%Y%m%d-%H%M', time.localtime()) + '_export'
+        self.__video_format = video_format
         if video_format == 'gif':
             # Length of a GIF frame
             duration = frame_length
@@ -1868,13 +1870,14 @@ class VideoExport(object):
             if speedup_empty_frames:
                 # GIF cant have more than 100 FPS
                 speedup_length = frame_length / 10 if frame_length / 10 >= 0.01 else 0.01
-                duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length for frame in
-                            self.__frames[time_range[0]:time_range[1] + 1]]
+                duration = [frame_length if len(frame['data'][1]['x']) > 0 else speedup_length
+                            for frame in self.__frames[time_range[0]:time_range[1] + 1]]
             # Create the writer object for creating the gif.
             # Mode I tells the writer to prepare for multiple images.
-            self.__writer = imageio.get_writer('export.gif', mode='I', duration=duration)
+            self.__writer = imageio.get_writer(self.__export_filename + '.gif', mode='I', duration=duration)
         elif video_format in VideoExport.ffmpeg_formats:
-            self.__writer = imageio.get_writer('export.' + video_format, format='ffmpeg', mode='I', fps=1/frame_length)
+            self.__writer = imageio.get_writer(self.__export_filename + '.' + video_format, format='ffmpeg', mode='I',
+                                               fps=1/frame_length)
         else:
             raise ValueError('Unknown format: ' + video_format)
 
@@ -1886,6 +1889,9 @@ class VideoExport(object):
         ipydisplay.display(self.__output)
         # Start building the frames
         self.__build_frame()
+
+    def get_output_path(self):
+        return self.__export_filename + '.' + self.__video_format
 
     def __init_figure(self, steps):
         self.__figure = {'layout': {}}
