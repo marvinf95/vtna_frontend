@@ -17,7 +17,7 @@ RUN mkdir -p /usr/src/vtna/
 WORKDIR /usr/src/vtna/
 
 # Copy the data for the package vtna
-COPY vtna ./vtna
+RUN  git clone https://github.com/marvinf95/vtna.git
 # Copy the data for the frontend and the jupyter notebook
 COPY frontend ./frontend
 RUN chown -R vtna:1000 /usr/src/vtna/
