@@ -998,7 +998,8 @@ class UIGraphDisplayManager(object):
                 self.__start_graph_loading()
                 self.__cumulative_checkbox.disabled = True
                 self.__temp_graph.set_cumulative(self.__cumulative_checkbox.value)
-                self.__figure.recompute_figure()
+                layout = self.__compute_layout()
+                self.__figure.update_layout(layout)
                 self.display_graph()
                 self.__cumulative_checkbox.disabled = False
                 self.__stop_graph_loading()
@@ -1705,9 +1706,6 @@ class TemporalGraphFigure(object):
 
     def get_figure(self) -> typ.Dict:
         return self.__figure_data
-
-    def recompute_figure(self):
-        self.__build_data_frames()
 
     def toggle_animate_transitions(self, animate_transitions: bool):
         """Toggles transition animation. Must be called before frames are built."""
