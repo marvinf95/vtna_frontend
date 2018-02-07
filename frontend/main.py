@@ -1007,19 +1007,23 @@ class UIGraphDisplayManager(object):
 
 
 class UIAttributeQueriesManager(object):
-    def __init__(self, attribute_info: typ.Dict, queries_main_vbox: widgets.VBox,
+    def __init__(self, temp_graph: vtna.graph.TemporalGraph, queries_main_vbox: widgets.VBox,
                  filter_box_layout: widgets.Layout, query_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
-        self.__attribute_info = attribute_info
+        self.__attribute_info = temp_graph.get_attributes_info()
+        self.__attribute_info['Node ID'] = {'measurement_type': 'ID',
+                                            'ids': [node.get_id() for node in temp_graph.get_nodes()]}
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
 
         self.__attributes_dropdown = None  # type: widgets.Dropdown
+        self.__node_id_int_text = None  # type: widgets.IntText
         self.__nominal_value_dropdown = None  # type: widgets.Dropdown
         self.__interval_value_float_slider = None  # type: widgets.Dropdown
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
+        self.__value_error_html = None  # type: widgets.HTML
         self.__color_picker = None  # type: widgets.ColorPicker
         self.__color_picker_msg_html = None  # type: widgets.HTML
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
@@ -1038,14 +1042,13 @@ class UIAttributeQueriesManager(object):
         self.__highlight_queries = dict()  # type: typ.Dict
         self.__active_highlight_queries = list()  # type: typ.List[int]
 
-        if self.__attribute_info != {}:
-            self.__build_queries_menu()
+        self.__build_queries_menu()
 
-            self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
-            self.__attributes_dropdown.observe(self.__build_on_attribute_change())
-            self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
-            self.__add_new_query_button.on_click(self.__build_add_query())
-            self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
+        self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
+        self.__attributes_dropdown.observe(self.__build_on_attribute_change())
+        self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
+        self.__add_new_query_button.on_click(self.__build_add_query())
+        self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
         attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', list(self.__attribute_info.keys())))
@@ -1056,6 +1059,13 @@ class UIAttributeQueriesManager(object):
             value=attributes[0],
             description='Attribute:',
             disabled=False,
+        )
+        # Node ID input
+        self.__node_id_int_text = widgets.IntText(
+            value=0,
+            disabled=True if initial_attribute['measurement_type'] != 'ID' else False,
+            description='Node ID:',
+            tooltip='Select a specific Node by ID'
         )
         # Nominal dropdown
         self.__nominal_value_dropdown = widgets.Dropdown(
@@ -1099,7 +1109,6 @@ class UIAttributeQueriesManager(object):
             disabled=False,
             description='Add new query',
             button_style='success',
-            tooltip='Add filter',
             icon='plus',
             layout=widgets.Layout(width='auto')
         )
@@ -1108,7 +1117,6 @@ class UIAttributeQueriesManager(object):
             description='Reset',
             disabled=False,
             button_style='',
-            tooltip='Reset filter',
             icon='refresh',
             layout=widgets.Layout(width='auto')
         )
@@ -1129,13 +1137,23 @@ class UIAttributeQueriesManager(object):
         if initial_attribute['measurement_type'] == 'O':
             self.__nominal_value_dropdown.layout.display = 'none'
             self.__interval_value_float_slider.layout.display = 'none'
+            self.__node_id_int_text.layout.display = 'none'
         elif initial_attribute['measurement_type'] == 'I':
             self.__nominal_value_dropdown.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
+            self.__node_id_int_text.layout.display = 'none'
+        elif initial_attribute['measurement_type'] == 'N':
+            self.__interval_value_float_slider.layout.display = 'none'
+            self.__ordinal_value_selection_range_slider.layout.display = 'none'
+            self.__node_id_int_text.layout.display = 'none'
         else:
             self.__interval_value_float_slider.layout.display = 'none'
             self.__ordinal_value_selection_range_slider.layout.display = 'none'
+            self.__nominal_value_dropdown.layout.display = 'none'
 
+        # Msg for attribute values
+        self.__value_error_html = widgets.HTML('')
+        self.__value_error_html.layout.display = 'none'
         # Msg for colorpicker
         self.__color_picker_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Click <i style='color:#9b59b6;' class='fa fa-paint-brush'></i> "
@@ -1166,10 +1184,11 @@ class UIAttributeQueriesManager(object):
              self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
-            [self.__attributes_dropdown, self.__nominal_value_dropdown, self.__interval_value_float_slider,
-             self.__ordinal_value_selection_range_slider, widgets.HBox([self.__color_picker,
-                                                                        self.__color_picker_msg_html]),
-             main_toolbar_vbox])
+            [self.__attributes_dropdown,
+             widgets.HBox([self.__node_id_int_text, self.__nominal_value_dropdown,
+                           self.__interval_value_float_slider, self.__ordinal_value_selection_range_slider,
+                           self.__value_error_html]),
+             widgets.HBox([self.__color_picker, self.__color_picker_msg_html]), main_toolbar_vbox])
         # Query output BOX
         self.__queries_output_box = widgets.Box([], layout=self.__filter_box_layout)
 
@@ -1181,18 +1200,17 @@ class UIAttributeQueriesManager(object):
         def on_change(change):
             if change['type'] == 'change' and change['name'] == 'value':
                 selected_attribute = self.__attribute_info[self.__attributes_dropdown.value]
+                self.__value_error_html.layout.display = 'none'
                 if selected_attribute['measurement_type'] == 'N':  # Selected attribute is nominal
                     # Activate nominal value dropdown
                     self.__nominal_value_dropdown.options = selected_attribute['categories']
                     self.__nominal_value_dropdown.value = selected_attribute['categories'][0]
                     self.__nominal_value_dropdown.disabled = False
                     self.__nominal_value_dropdown.layout.display = 'inline-flex'
-                    # Hide interval and ordinal value sliders
-                    # TODO: Not sure about these two lines, commented them out for now
-                    # self.__interval_value_int_slider.disabled = True
-                    # self.__interval_value_int_slider.readout = False
+                    # Hide interval and ordinal value sliders and node id input
                     self.__interval_value_float_slider.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
+                    self.__node_id_int_text.layout.display = 'none'
                 elif selected_attribute['measurement_type'] == 'I':  # Selected attribute is interval
                     # Activate interval value slider
                     self.__interval_value_float_slider.disabled = False
@@ -1203,9 +1221,10 @@ class UIAttributeQueriesManager(object):
                     self.__interval_value_float_slider.max = selected_attribute['range'][1]
                     self.__interval_value_float_slider.value = selected_attribute['range']
                     self.__interval_value_float_slider.layout.display = 'inline-flex'
-                    # Hide nominal dropdown and ordinal slider
+                    # Hide nominal dropdown and ordinal slider and node id input
                     self.__nominal_value_dropdown.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
+                    self.__node_id_int_text.layout.display = 'none'
                 elif selected_attribute['measurement_type'] == 'O':  # Selected attribute is ordinal
                     # Activate ordinal value slider
                     self.__ordinal_value_selection_range_slider.disabled = False
@@ -1213,8 +1232,16 @@ class UIAttributeQueriesManager(object):
                     self.__ordinal_value_selection_range_slider.options = selected_attribute['categories']
                     self.__ordinal_value_selection_range_slider.index = (0, len(selected_attribute['categories']) - 1)
                     self.__ordinal_value_selection_range_slider.layout.display = 'inline-flex'
-                    # Hide nominal dropdown and interval slider
+                    # Hide nominal dropdown and interval slider and node id input
                     self.__nominal_value_dropdown.layout.display = 'none'
+                    self.__interval_value_float_slider.layout.display = 'none'
+                    self.__node_id_int_text.layout.display = 'none'
+                elif selected_attribute['measurement_type'] == 'ID':  # Selected attribute is Node ID
+                    self.__node_id_int_text.disabled = False
+                    self.__node_id_int_text.layout.display = 'inline-flex'
+                    # Hide input widgets
+                    self.__nominal_value_dropdown.layout.display = 'none'
+                    self.__ordinal_value_selection_range_slider.layout.display = 'none'
                     self.__interval_value_float_slider.layout.display = 'none'
 
         return on_change
@@ -1263,7 +1290,8 @@ class UIAttributeQueriesManager(object):
             clause_ctx['operator_new'] = clause['operator'] == 'NEW'
             clause_ctx['operator'] = clause['operator']
             clause_ctx['attribute_name'] = clause['value'][0]
-            if self.__attribute_info[clause['value'][0]]['measurement_type'] == 'N':
+            # Nominal and ID act similarly in how they are displayed.
+            if self.__attribute_info[clause['value'][0]]['measurement_type'] in {'N', 'ID'}:
                 clause_ctx['is_nominal'] = True
                 clause_ctx['value'] = clause['value'][1]
             else:
@@ -1280,7 +1308,8 @@ class UIAttributeQueriesManager(object):
         attribute_type = self.__attribute_info[self.__attributes_dropdown.value]['measurement_type']
         return {'N': self.__nominal_value_dropdown.value,  # string
                 'I': self.__interval_value_float_slider.value,  # tuple of 2 ints
-                'O': self.__ordinal_value_selection_range_slider.value  # tuple of 2 strings
+                'O': self.__ordinal_value_selection_range_slider.value,  # tuple of 2 strings
+                'ID': self.__node_id_int_text.value  # int
                 }[attribute_type]
 
     def __build_add_query(self) -> typ.Callable:
@@ -1288,9 +1317,17 @@ class UIAttributeQueriesManager(object):
             active_queries = self.__get_active_queries_reference()
             query_counter_read = self.__get_query_counter()
             queries = self.__get_queries_reference()
+            current_value = self.__fetch_current_value()
+
+            self.__value_error_html.layout.display = 'none'
+            # Check if input of Node ID is valid node
+            if self.__attribute_info[self.__attributes_dropdown.value]['measurement_type'] == 'ID':
+                if current_value not in self.__attribute_info[self.__attributes_dropdown.value]['ids']:
+                    self.__value_error_html.value = '<span style="color: red;">No node with this ID exists</span>'
+                    self.__value_error_html.layout.display = 'inline-flex'
+                    return
 
             active_queries.append(query_counter_read)
-            current_value = self.__fetch_current_value()
             queries[query_counter_read] = \
                 {'color': self.__color_picker.value,
                  'clauses': {1: {'operator': 'NOT' if self.__boolean_combination_dropdown.value == 'NOT' else 'NEW',
@@ -1540,6 +1577,10 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
         pred = lambda n: lower_bound(n) and not inv_upper_bound(n)
     elif attribute_info[name]['measurement_type'] == 'N':  # Equality
         pred = vtna.filter.categorical_attribute_equal(name, value)
+    elif attribute_info[name]['measurement_type'] == 'ID':
+        pred = lambda n: n.get_id() == value
+    else:
+        raise Exception(f'Abnormal Behaviour: Unexpected measurement type: {attribute_info[name]["measurement_type"]}')
     return pred
 
 
