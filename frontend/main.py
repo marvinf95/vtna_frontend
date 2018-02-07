@@ -1048,7 +1048,7 @@ class UIAttributeQueriesManager(object):
             self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
-        attributes = list(self.__attribute_info.keys())
+        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', list(self.__attribute_info.keys())))
         initial_attribute = self.__attribute_info[attributes[0]]
         # Attribute drop down
         self.__attributes_dropdown = widgets.Dropdown(
