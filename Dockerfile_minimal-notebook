@@ -13,7 +13,7 @@ USER jovyan
 WORKDIR /home/jovyan
 
 ## Copy data for vtna package into the container
-COPY vtna ./vtna
+RUN  git clone https://github.com/marvinf95/vtna.git
 ## Copy data for frontend into the container
 COPY frontend ./frontend
 
