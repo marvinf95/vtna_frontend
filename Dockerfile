@@ -5,6 +5,9 @@ USER root
 
 # Update system and add required packages
 RUN apt-get -y update && apt-get -y upgrade
+RUN echo deb http://ftp.uk.debian.org/debian jessie-backports main >> /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -y install ffmpeg
 
 # Create user named vtna
 RUN adduser --system --uid 1000 vtna 
