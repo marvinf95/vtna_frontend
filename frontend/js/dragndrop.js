@@ -48,12 +48,12 @@ function toggleSortable(checkbox) {
     ul_list = document.getElementById("attr_list" + checkbox.value);
     if(checkbox.checked) {
         // For changing list style to make sortability visible
-        ul_list.classList.add('sortlist')
-        enableSorting(ul_list, checkbox.value)
+        ul_list.classList.add('sortlist');
+        enableSorting(ul_list, checkbox.value);
     } else {
         if(ul_list.classList.contains('sortlist')) {
             ul_list.classList.remove('sortlist');
         }
-        disableSorting(ul_list, checkbox.value)
+        disableSorting(ul_list, checkbox.value);
     }
 };
