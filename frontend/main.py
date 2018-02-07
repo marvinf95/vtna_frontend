@@ -1012,7 +1012,7 @@ class UIAttributeQueriesManager(object):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
         self.__attribute_info = temp_graph.get_attributes_info()
-        self.__attribute_info['Node ID'] = {'measurement_type': 'ID',
+        self.__attribute_info['Node ID'] = {'measurement_type': 'ID', 'scope': 'global',
                                             'ids': [node.get_id() for node in temp_graph.get_nodes()]}
 
         with open(query_html_template_path, mode='rt') as f:
@@ -1051,7 +1051,7 @@ class UIAttributeQueriesManager(object):
         self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
-        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', list(self.__attribute_info.keys())))
+        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', self.__attribute_info.keys()))
         initial_attribute = self.__attribute_info[attributes[0]]
         # Attribute drop down
         self.__attributes_dropdown = widgets.Dropdown(
