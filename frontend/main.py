@@ -1007,10 +1007,14 @@ class UIGraphDisplayManager(object):
 
 
 class UIAttributeQueriesManager(object):
+    RELEVANT_NODE_DISPLAY_LIMIT = 5
+
     def __init__(self, temp_graph: vtna.graph.TemporalGraph, queries_main_vbox: widgets.VBox,
-                 filter_box_layout: widgets.Layout, query_html_template_path: str):
+                 filter_box_layout: widgets.Layout, query_html_template_path: str,
+                 relevant_node_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
+        self.__temp_graph = temp_graph
         self.__attribute_info = temp_graph.get_attributes_info()
         self.__attribute_info['Node ID'] = {'measurement_type': 'ID', 'scope': 'global',
                                             'ids': [node.get_id() for node in temp_graph.get_nodes()]}
@@ -1018,19 +1022,27 @@ class UIAttributeQueriesManager(object):
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
 
+        with open(relevant_node_html_template_path, mode='rt') as f:
+            self.__relevant_node_template = f.read()
+
+        self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
+
         self.__attributes_dropdown = None  # type: widgets.Dropdown
         self.__node_id_int_text = None  # type: widgets.IntText
         self.__nominal_value_dropdown = None  # type: widgets.Dropdown
         self.__interval_value_float_slider = None  # type: widgets.Dropdown
         self.__ordinal_value_selection_range_slider = None  # type: widgets.Dropdown
         self.__value_error_html = None  # type: widgets.HTML
+
         self.__color_picker = None  # type: widgets.ColorPicker
         self.__color_picker_msg_html = None  # type: widgets.HTML
+
         self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
         self.__add_new_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
-        self.__filter_highlight_toggle_buttons = None  # type: widgets.ToggleButtons
         self.__queries_output_box = None  # type: widgets.Box
+
+        self.__relevant_nodes_overview_html = None  # type: widgets.HTML
 
         self.__filter_query_counter = 1  # type: int
         self.__filter_queries = dict()  # type: typ.Dict
@@ -1166,6 +1178,8 @@ class UIAttributeQueriesManager(object):
         # Hiding msg until 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
 
+        self.__relevant_nodes_overview_html = widgets.HTML('<h2>Relevant Nodes</h2>')
+
         # Apply queries to graph button
         self.__apply_to_graph_button = widgets.Button(
             description='Apply',
@@ -1194,7 +1208,7 @@ class UIAttributeQueriesManager(object):
 
         # Put created components into correct container
         self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box,
-                                             self.__apply_to_graph_button]
+                                             self.__apply_to_graph_button, self.__relevant_nodes_overview_html]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
@@ -1260,7 +1274,6 @@ class UIAttributeQueriesManager(object):
 
         return on_change
 
-    # TODO: Rename to construct_query_html or something more appropriate
     def __construct_query(self, query_id: int):
         html_string = self.__construct_query_html(query_id)
         # lookup the widget and reassign the HTML value
@@ -1270,7 +1283,22 @@ class UIAttributeQueriesManager(object):
                 self.__queries_output_box.children[i].children[1].value = html_string
                 break
 
+    def __construct_queries_from_scratch(self) -> None:
+        # Empty output box
+        self.__queries_output_box.children = []
+        # Add queries
+        for query_id, query in self.__get_queries_reference().items():
+            w_0 = widgets.Text(description=str(query_id), layout=widgets.Layout(display='none'))
+            w_1 = widgets.HTML(value=self.__construct_query_html(query_id),
+                               layout=widgets.Layout(display='inline-block'))
+            self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
+
     def __construct_query_html(self, query_id: int) -> str:
+        context = self.__create_query_context(query_id)
+        html_string = pystache.render(self.__query_template, context)
+        return html_string
+
+    def __create_query_context(self, query_id) -> typ.Dict[str, typ.Any]:
         is_filter = self.in_filter_mode()
         current_operator = self.__boolean_combination_dropdown.value
         is_new = current_operator in ['NEW', 'NOT']
@@ -1281,7 +1309,6 @@ class UIAttributeQueriesManager(object):
         context['toggle_state'] = ['fa-toggle-off', 'fa-toggle-on'][is_active]
         context['is_filter'] = is_filter
         context['is_new'] = is_new
-        # TODO: Only highlight queries should have a color attached
         context['color'] = self.__get_queries_reference()[query_id]['color']
         context['clauses'] = list()
         for key, clause in sorted(self.__get_queries_reference()[query_id]['clauses'].items(), key=lambda t: int(t[0])):
@@ -1299,10 +1326,31 @@ class UIAttributeQueriesManager(object):
                 clause_ctx['value_begin'] = clause['value'][1][0]
                 clause_ctx['value_end'] = clause['value'][1][1]
             context['clauses'].append(clause_ctx)
+        return context
 
-        html_string = pystache.render(self.__query_template, context)
+    def __create_queries_context(self) -> typ.Dict[str, typ.Any]:
+        context = {'queries': list()}
+        for query_id in sorted(self.__get_queries_reference().keys()):
+            context['queries'].append(self.__create_query_context(query_id))
+        return context
 
+    def __construct_relevant_node_html(self, nodes_displayed: int) -> str:
+        context = self.__create_queries_context()
+        # Enrich context of each query with node count and string containing nodes_displayed node IDs.
+        active_queries = dict((idx, query) for idx, query in self.__get_queries_reference().items()
+                              if idx in self.__get_active_queries_reference())
+        for i, query in enumerate(active_queries.values()):
+            node_filter = build_clause(query, self.__attribute_info)
+            relevant_nodes = list(node_filter(self.__temp_graph.get_nodes()))
+            context['queries'][i]['node_count'] = len(relevant_nodes)
+            context['queries'][i]['first_nodes'] = ', '.join(str(node.get_id())
+                                                             for node in relevant_nodes[:nodes_displayed])
+        html_string = pystache.render(self.__relevant_node_template, context)
         return html_string
+
+    def __update_relevant_node_id_summary(self):
+        self.__relevant_nodes_overview_html.value = self.__construct_relevant_node_html(
+            UIAttributeQueriesManager.RELEVANT_NODE_DISPLAY_LIMIT)
 
     def __fetch_current_value(self) -> typ.Any:
         attribute_type = self.__attribute_info[self.__attributes_dropdown.value]['measurement_type']
@@ -1339,6 +1387,7 @@ class UIAttributeQueriesManager(object):
 
             self.__increment_query_counter()
 
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def build_add_query_clause(self) -> typ.Callable:
@@ -1350,7 +1399,7 @@ class UIAttributeQueriesManager(object):
                 {'operator': self.__boolean_combination_dropdown.value,
                  'value': (self.__attributes_dropdown.value, value)}
             self.__construct_query(query_id)
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def build_delete_query_clause(self) -> typ.Callable:
@@ -1369,7 +1418,7 @@ class UIAttributeQueriesManager(object):
                     queries[query_id]['clauses'][new_initial_idx]['operator'] = \
                         'NOT' if 'NOT' in queries[query_id]['clauses'][new_initial_idx]['operator'] else 'NEW'
                 self.__construct_query(query_id)
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def build_delete_query(self) -> typ.Callable:
@@ -1381,7 +1430,7 @@ class UIAttributeQueriesManager(object):
                 if str(query_id) != self.__queries_output_box.children[i].children[0].description:
                     keep.append(self.__queries_output_box.children[i])
             self.__queries_output_box.children = keep
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def build_switch_query(self) -> typ.Callable:
@@ -1393,7 +1442,7 @@ class UIAttributeQueriesManager(object):
             else:
                 active_queries.append(q_id)
             self.__construct_query(q_id)
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def build_paint_query(self) -> typ.Callable:
@@ -1401,7 +1450,7 @@ class UIAttributeQueriesManager(object):
             queries = self.__get_queries_reference()
             queries[query_id]['color'] = self.__color_picker.value
             self.__construct_query(query_id)
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def __build_delete_all_queries(self) -> typ.Callable:
@@ -1409,7 +1458,7 @@ class UIAttributeQueriesManager(object):
             self.__queries_output_box.children = []
             self.__reset_queries()
             self.__reset_query_counter()
-
+            self.__update_relevant_node_id_summary()
         return on_click
 
     def __build_on_mode_change(self) -> typ.Callable:
@@ -1425,18 +1474,8 @@ class UIAttributeQueriesManager(object):
                     self.__color_picker_msg_html.layout.display = 'none'
                 # Redraw queries output completely
                 self.__construct_queries_from_scratch()
-
+                self.__update_relevant_node_id_summary()
         return on_mode_change
-
-    def __construct_queries_from_scratch(self) -> None:
-        # Empty output box
-        self.__queries_output_box.children = []
-        # Add queries
-        for query_id, query in self.__get_queries_reference().items():
-            w_0 = widgets.Text(description=str(query_id), layout=widgets.Layout(display='none'))
-            w_1 = widgets.HTML(value=self.__construct_query_html(query_id),
-                               layout=widgets.Layout(display='inline-block'))
-            self.__queries_output_box.children += (widgets.HBox([w_0, w_1], layout=widgets.Layout(display='block')),)
 
     def in_filter_mode(self) -> bool:
         """Returns whether current mode is filter or not (highlight)"""
@@ -1555,7 +1594,7 @@ def build_clause(raw_clause: typ.Dict, attribute_info: typ.Dict) \
             clause += -node_filter
         else:
             # Either the front end provided a bad queries dict, or the matching is not correct.
-            raise Exception(f'Unknown filter combinator: {op}')
+            raise Exception(f'Abnormal Behaviour: Unknown queries combinator: {op}')
     return clause
 
 
