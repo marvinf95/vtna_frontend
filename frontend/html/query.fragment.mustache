@@ -1,5 +1,8 @@
 <ul class="query-row">
     <li>
+        <span class="query-id">{{query_id}}:</span>
+    </li>
+    <li>
         <button class="query-btn btn-del" onclick="deleteQuery({{query_id}})">
             <i class="fa fa-trash"></i>
         </button>
@@ -20,7 +23,7 @@
             {{#clauses}}
                 <b>{{^operator_new}}{{operator}}{{/operator_new}}</b> {{attribute_name}} &#8702;
                 {{#is_nominal}}{{value}}{{/is_nominal}}
-                {{^is_nominal}}From {{value_begin}} to {{value_end}}{{/is_nominal}}
+                {{^is_nominal}}[{{value_begin}} - {{value_end}}]{{/is_nominal}}
                 <button class="query-btn btn-del" onclick="deleteQueryClause({{query_id}}, {{clause_id}})">
                     <i class="fa fa-minus-square"></i>
                 </button>
