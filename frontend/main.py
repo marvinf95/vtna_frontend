@@ -1345,6 +1345,7 @@ class UIAttributeQueriesManager(object):
             context['queries'][i]['node_count'] = len(relevant_nodes)
             context['queries'][i]['first_nodes'] = ', '.join(str(node.get_id())
                                                              for node in relevant_nodes[:nodes_displayed])
+            context['queries'][i]['are_all_nodes'] = len(relevant_nodes) <= nodes_displayed
         html_string = pystache.render(self.__relevant_node_template, context)
         return html_string
 

@@ -63,8 +63,27 @@ ul.query-row {
 
 ul.query-row li {
     display:table-cell;
-    /*min-width: 72px;*/
+    font-size: 1.1em;
 }
+
+.query-id {
+    font-weight: bold;
+}
+
+.relevant-node-query {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.relevant-node-query td {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+}
+
+.relevant-node-query-header {
+    text-align: center;
+}
+
 .widget-inline-hbox .widget-readout {
     max-width: 250px;
     min-width: 100px;

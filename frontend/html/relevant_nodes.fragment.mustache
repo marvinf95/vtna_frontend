@@ -1,34 +1,13 @@
-<table border="1px">
-    <tr>
-        <th>#Nodes</th>
-        <th>First 5</th>
-        <th>Query</th>
-    </tr>
+<table>
     {{#queries}}
-        <tr>
-            <td>{{node_count}}</td>
-            <td>{{first_nodes}}</td>
-            <td>
-                <ul class="query-row">
-                    <li>
-                        {{^is_filter}}
-                            <span class="flt-element flt-row-bullet {{#is_filter}}filter-mode{{/is_filter}}"
-                                  style="background: {{color}};">
-                            </span>
-                        {{/is_filter}}
-                    </li>
-                    <li>
-                        <span class="flt-element flt-row-item {{#is_filter}}filter-mode{{/is_filter}}"
-                              style="color: {{color}};">
-                            {{#clauses}}
-                                <b>{{^operator_new}}{{operator}}{{/operator_new}}</b> {{attribute_name}} &#8702;
-                                {{#is_nominal}}{{value}}{{/is_nominal}}
-                                {{^is_nominal}}[{{value_begin}} - {{value_end}}]{{/is_nominal}}
-                            {{/clauses}}
-                        </span>
-                    </li>
-                </ul>
+        <tr class="relevant-node-query">
+            <td><span class="query-id">{{query_id}}:</span> {{^is_filter}}
+                    <span class="flt-element flt-row-bullet " style="background: {{color}};">
+                    </span>
+                {{/is_filter}}
             </td>
+            <td>{{node_count}} Nodes</td>
+            <td>&#xbb; {{first_nodes}}{{^are_all_nodes}} ...{{/are_all_nodes}}</td>
         </tr>
     {{/queries}}
 </table>
