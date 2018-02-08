@@ -1340,7 +1340,7 @@ class UIAttributeQueriesManager(object):
         active_queries = dict((idx, query) for idx, query in self.__get_queries_reference().items()
                               if idx in self.__get_active_queries_reference())
         for i, query in enumerate(active_queries.values()):
-            node_filter = build_clause(query, self.__attribute_info)
+            node_filter = build_clause(query['clauses'], self.__attribute_info)
             relevant_nodes = list(node_filter(self.__temp_graph.get_nodes()))
             context['queries'][i]['node_count'] = len(relevant_nodes)
             context['queries'][i]['first_nodes'] = ', '.join(str(node.get_id())
