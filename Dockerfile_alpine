@@ -5,7 +5,7 @@ USER root
 
 # Update system and add required packages
 RUN apk update && apk upgrade
-RUN apk add --no-cache pkgconfig freetype-dev libpng-dev gfortran gcc build-base openblas-dev
+RUN apk add --no-cache pkgconfig freetype-dev libpng-dev gfortran gcc build-base openblas-dev git ffmpeg jpeg-dev
 
 # Create user named vtna
 RUN adduser -D -u 1000 vtna 

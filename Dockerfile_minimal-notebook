@@ -5,6 +5,7 @@ LABEL version="0.1" description="Installs the application of the VTNA project at
 USER root
 
 RUN apt-get update
+RUN apt-get -y install ffmpeg
 
 ## User from the minimal notebook
 USER jovyan
