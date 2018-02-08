@@ -1186,12 +1186,12 @@ class UIAttributeQueriesManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply Queries to Graph',
-            layout=widgets.Layout(margin='10px 0px 0px 0px')
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
         # Queries toolbar: Reset(delete all), toggle mode, apply to graph
-        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons])
+        queries_toolbar_hbox = widgets.HBox([self.__delete_all_queries_button, self.__filter_highlight_toggle_buttons,
+                                             self.__apply_to_graph_button])
         # Main toolbar : Operator Dropdown, Add Query Button
         main_toolbar_vbox = widgets.VBox(
             [widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
@@ -1208,7 +1208,7 @@ class UIAttributeQueriesManager(object):
 
         # Put created components into correct container
         self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box,
-                                             self.__apply_to_graph_button, self.__relevant_nodes_overview_html]
+                                             self.__relevant_nodes_overview_html]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):
