@@ -1178,7 +1178,11 @@ class UIAttributeQueriesManager(object):
         # Hiding msg until 'operation' != New/Not
         self.__add_new_clause_msg_html.layout.visibility = 'hidden'
 
-        self.__relevant_nodes_overview_html = widgets.HTML('<h2>Relevant Nodes</h2>')
+        self.__relevant_nodes_overview_html = widgets.HTML('', layout=widgets.Layout(height='8em'))
+        self.__relevant_nodes_accordion = widgets.Accordion([self.__relevant_nodes_overview_html])
+        self.__relevant_nodes_accordion.set_title(0, 'Overview: Queried Nodes')
+        # Collapses all accordion windows
+        self.__relevant_nodes_accordion.selected_index = None
 
         # Apply queries to graph button
         self.__apply_to_graph_button = widgets.Button(
@@ -1208,7 +1212,7 @@ class UIAttributeQueriesManager(object):
 
         # Put created components into correct container
         self.__queries_main_vbox.children = [queries_toolbar_hbox, queries_form_vbox, self.__queries_output_box,
-                                             self.__relevant_nodes_overview_html]
+                                             self.__relevant_nodes_accordion]
 
     def __build_on_attribute_change(self) -> typ.Callable:
         def on_change(change):

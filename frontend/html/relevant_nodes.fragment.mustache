@@ -1,13 +1,15 @@
-<table>
-    {{#queries}}
-        <tr class="relevant-node-query">
-            <td><span class="query-id">{{query_id}}:</span> {{^is_filter}}
+<div class="relevant-node-queries-all">
+    <table>
+        {{#queries}}
+            <tr class="relevant-node-query">
+                <td><span class="query-id">{{query_id}}:</span> {{^is_filter}}
                     <span class="flt-element flt-row-bullet " style="background: {{color}};">
                     </span>
                 {{/is_filter}}
-            </td>
-            <td>{{node_count}} Nodes</td>
-            <td>&#xbb; {{first_nodes}}{{^are_all_nodes}} ...{{/are_all_nodes}}</td>
-        </tr>
-    {{/queries}}
-</table>
+                </td>
+                <td>{{node_count}} Nodes</td>
+                <td>&#xbb; {{first_nodes}}{{^are_all_nodes}} ...{{/are_all_nodes}}</td>
+            </tr>
+        {{/queries}}
+    </table>
+</div>
