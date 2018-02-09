@@ -808,10 +808,12 @@ class UIGraphDisplayManager(object):
             edge_color = self.__style_manager.get_edge_color()
             node_size = self.__style_manager.get_node_size()
             edge_width = self.__style_manager.get_edge_width()
+            frame_length = self.__style_manager.get_animation_frame_length()
             self.__figure.update_colors(node_colors)
             self.__figure.update_edge_color(edge_color)
             self.__figure.update_node_size(node_size)
             self.__figure.update_edge_width(edge_width)
+            self.__figure.update_animation_frame_length(frame_length)
             self.display_graph()
             self.__stop_graph_loading()
 
@@ -1702,6 +1704,7 @@ class TemporalGraphFigure(object):
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
         self.__transition_time = 300
+        self.__frame_length = 1000
         self.toggle_animate_transitions(animate_transitions)
         self.__build_data_frames()
 
@@ -1747,7 +1750,7 @@ class TemporalGraphFigure(object):
             {
                 'buttons': [
                     {
-                        'args': [None, {'frame': {'duration': 500, 'redraw': False},
+                        'args': [None, {'frame': {'duration': self.__frame_length, 'redraw': False},
                                         'fromcurrent': True,
                                         'transition': {'duration': self.__transition_time, 'easing': 'quadratic-in-out'}}],
                         'label': 'Play',
@@ -1830,6 +1833,13 @@ class TemporalGraphFigure(object):
             self.__edge_width = width
             self.__resize_displayed_edges()
             self.__set_figure_data_as_initial_frame()
+
+    def update_animation_frame_length(self, frame_length: int):
+        # Don't do anything on unchanged value
+        if frame_length != self.__frame_length:
+            self.__frame_length = frame_length
+            # Update play animation speed with a beautiful 9-layer-deep container access
+            self.__figure_data['layout']['updatemenus'][0]['buttons'][0]['args'][1]['frame']['duration'] = frame_length
 
     def __build_data_frames(self):
         self.__init_figure_data()
@@ -1915,7 +1925,7 @@ class TemporalGraphFigure(object):
                 'args': [
                     [timestep],
                     {
-                        'frame': {'duration': 300, 'redraw': False},
+                        'frame': {'duration': 0, 'redraw': False},
                         'mode': 'immediate',
                         'transition': {'duration': self.__transition_time}
                     }
@@ -2180,6 +2190,12 @@ class UIDefaultStyleOptionsManager(object):
             layout=widgets.Layout(width='8em')
         )
 
+        self.__animation_speed_text = widgets.IntText(
+            value=1000,
+            layout=widgets.Layout(width='15em'),
+            description='Frame length:'
+        )
+
         self.__apply_changes_button = widgets.Button(
             description='Apply',
             disabled=False,
@@ -2194,6 +2210,7 @@ class UIDefaultStyleOptionsManager(object):
                 widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
                 widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
             ]),
+            self.__animation_speed_text,
             widgets.VBox([self.__apply_changes_button])
         ]
 
@@ -2234,6 +2251,9 @@ class UIDefaultStyleOptionsManager(object):
 
     def get_edge_width(self) -> float:
         return self.__edge_size_float_text.value
+
+    def get_animation_frame_length(self) -> int:
+        return self.__animation_speed_text.value
 
 
 class UIStatisticsManager(object):
