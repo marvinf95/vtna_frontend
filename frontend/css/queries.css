@@ -70,6 +70,34 @@ ul.query-row li {
     font-weight: bold;
 }
 
+.query-add-btn-box {
+    display: inline-flex;
+    width: auto;
+    height: auto;
+}
+
+.query-add-dropdown-content {
+    display: block;
+    position: absolute;
+    background-color: #f1f1f1;
+    min-width: 5em;
+    overflow: auto;
+    height: auto;
+    box-shadow: 0 0.4em 0.8em 0 rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+.query-add-dropdown-content a {
+    color: black;
+    padding: 0.5em 0.7em;
+    text-decoration: none;
+    display: block;
+}
+
+.query-add-dropdown-content a:hover {
+    background-color: #ddd;
+}
+
 .relevant-node-query {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;

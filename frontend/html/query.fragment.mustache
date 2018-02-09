@@ -28,10 +28,12 @@
                     <i class="fa fa-minus-square"></i>
                 </button>
             {{/clauses}}
-            <button class="query-btn btn-add {{#is_new}}btn-disabled{{/is_new}}" {{#is_new}}disabled{{/is_new}}
-                    onclick="addQueryClause({{query_id}})">
-                <i class="fa fa-plus-square"></i>
-            </button>
+            <div class="query-add-btn-box">
+                <button class="query-btn btn-add"
+                        onclick="openAddQueryOperatorDropdown(this, 'query-add-dropdown-id{{query_id}}', {{query_id}})">
+                    <i class="fa fa-plus-square"></i>
+                </button>
+            </div>
         </span>
     </li>
 </ul>
