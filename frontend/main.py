@@ -1056,7 +1056,6 @@ class UIAttributeQueriesManager(object):
 
         self.__build_queries_menu()
 
-        self.__boolean_combination_dropdown.observe(self.__build_on_boolean_operator_change())
         self.__attributes_dropdown.observe(self.__build_on_attribute_change())
         self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
         self.__add_new_query_button.on_click(self.__build_add_query())
@@ -1141,7 +1140,7 @@ class UIAttributeQueriesManager(object):
         )
         # Query operations ('New/Not' is used to refer to a new filter with a root clause)
         self.__boolean_combination_dropdown = widgets.Dropdown(
-            options=['NEW', 'NOT', 'AND', 'AND NOT', 'OR', 'OR NOT'],
+            options=['NEW', 'NOT'],
             description='Operator:',
             value='NEW'
         )
@@ -1175,8 +1174,6 @@ class UIAttributeQueriesManager(object):
         self.__add_new_clause_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
                   "to add a clause to a query</span>")
-        # Hiding msg until 'operation' != New/Not
-        self.__add_new_clause_msg_html.layout.visibility = 'hidden'
 
         self.__relevant_nodes_overview_html = widgets.HTML('', layout=widgets.Layout(height='8em'))
         self.__relevant_nodes_accordion = widgets.Accordion([self.__relevant_nodes_overview_html])
@@ -1261,20 +1258,6 @@ class UIAttributeQueriesManager(object):
                     self.__nominal_value_dropdown.layout.display = 'none'
                     self.__ordinal_value_selection_range_slider.layout.display = 'none'
                     self.__interval_value_float_slider.layout.display = 'none'
-
-        return on_change
-
-    def __build_on_boolean_operator_change(self) -> typ.Callable:
-        def on_change(change):
-            if change['type'] == 'change' and change['name'] == 'value':
-                new_operator = self.__boolean_combination_dropdown.value
-                ipydisplay.display(ipydisplay.Javascript(f"je.setOperator('{new_operator}').adjustButtons();"))
-                if new_operator in ['NEW', 'NOT']:
-                    self.__add_new_query_button.disabled = False
-                    self.__add_new_clause_msg_html.layout.visibility = 'hidden'
-                else:
-                    self.__add_new_query_button.disabled = True
-                    self.__add_new_clause_msg_html.layout.visibility = 'visible'
 
         return on_change
 
@@ -1396,12 +1379,12 @@ class UIAttributeQueriesManager(object):
         return on_click
 
     def build_add_query_clause(self) -> typ.Callable:
-        def on_click(query_id):
+        def on_click(query_id, operator):
             queries = self.__get_queries_reference()
             value = self.__fetch_current_value()
             new_clause_idx = int(max(queries[query_id]['clauses'].keys(), key=int)) + 1
             queries[query_id]['clauses'][new_clause_idx] = \
-                {'operator': self.__boolean_combination_dropdown.value,
+                {'operator': operator,
                  'value': (self.__attributes_dropdown.value, value)}
             self.__construct_query(query_id)
             self.__update_relevant_node_id_summary()

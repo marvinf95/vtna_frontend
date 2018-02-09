@@ -21,17 +21,6 @@ JsEngine.prototype.setMode = function (mode) {
 };
 
 
-JsEngine.prototype.adjustButtons = function () {
-    if (['NEW', 'NOT'].indexOf(this.operator) >= 0) {
-        $('.btn-add').prop('disabled', true);
-        $('.btn-add').addClass('btn-disabled');
-    } else {
-        $('.btn-add').prop('disabled', false);
-        $('.btn-add').removeClass('btn-disabled');
-    }
-    return this;
-};
-
 JsEngine.prototype.switchMode = function () {
     if (this.mode == 'Filter') {
         $(".flt-element").addClass('filter-mode');
@@ -43,9 +32,28 @@ JsEngine.prototype.switchMode = function () {
 
 var je = new JsEngine();
 
+// https://www.w3schools.com/howto/howto_js_dropdown.asp (dropdown-related code)
+function openAddQueryOperatorDropdown(elem, dropdown_elem_id, query_id) {
+    $('body').append("<div id=\"" + dropdown_elem_id + "\" class=\"query-add-dropdown-content\">\n" +
+        "<a onclick=\"addQueryClause(" + query_id + ", 'AND')\">AND</a>\n" +
+        "<a onclick=\"addQueryClause(" + query_id + ", 'OR')\">OR</a>\n" +
+        "<a onclick=\"addQueryClause(" + query_id + ", 'AND NOT')\">AND NOT</a>\n" +
+        "<a onclick=\"addQueryClause(" + query_id + ", 'OR NOT')\">OR NOT</a>\n" +
+        "</div>");
+    let left = $(elem).offset().left + $(elem).width();
+    let top = $(elem).offset().top + $(elem).height();
+    $('#' + dropdown_elem_id).css('left', left);
+    $('#' + dropdown_elem_id).css('top', top);
+}
 
-function addQueryClause(q_id) {
-    je.execute('addQueryClause(' + q_id + ')');
+window.addEventListener('click', function(event) {
+    if (!event.target.matches('.query-add-btn-box *,.query-add-btn-box')) {
+        $('.query-add-dropdown-content').remove();
+    }
+}, false);
+
+function addQueryClause(q_id, operator) {
+    je.execute('addQueryClause(' + q_id + ', "' + operator + '")');
 }
 
 function deleteQueryClause(q_id, c_id) {
