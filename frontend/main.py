@@ -2192,7 +2192,7 @@ class UIDefaultStyleOptionsManager(object):
 
         self.__animation_speed_text = widgets.IntText(
             value=1000,
-            layout=widgets.Layout(width='15em'),
+            layout=widgets.Layout(width='12em'),
             description='Frame length:'
         )
 
@@ -2201,7 +2201,7 @@ class UIDefaultStyleOptionsManager(object):
             disabled=False,
             button_style='primary',
             tooltip='Apply default style',
-            layout=widgets.Layout(margin='10px 0px 0px 0px')
+            layout=widgets.Layout(top='0.5em')
         )
         self.__apply_changes_button.on_click(self.__build_on_change())
 
@@ -2210,8 +2210,11 @@ class UIDefaultStyleOptionsManager(object):
                 widgets.VBox([widgets.Label('Node'), self.__node_color_picker, self.__node_size_float_text]),
                 widgets.VBox([widgets.Label('Edge'), self.__edge_color_picker, self.__edge_size_float_text])
             ]),
-            self.__animation_speed_text,
-            widgets.VBox([self.__apply_changes_button])
+            widgets.HBox([
+                self.__animation_speed_text,
+                widgets.Label(value='ms')
+            ], layout=widgets.Layout(top='0.2em')),
+            self.__apply_changes_button
         ]
 
     def register_graph_display_manager(self, manager: UIGraphDisplayManager):
