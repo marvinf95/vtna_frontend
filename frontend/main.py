@@ -1680,6 +1680,8 @@ class NodeMeasuresManager(object):
 
 
 class TemporalGraphFigure(object):
+    DEFAULT_ANIMATION_FRAME_LENGTH = 700
+
     def __init__(self,
                  temp_graph: vtna.graph.TemporalGraph,
                  layout: typ.List[typ.Dict[int, typ.Tuple[float, float]]],
@@ -1704,7 +1706,7 @@ class TemporalGraphFigure(object):
         self.__sliders_data = None  # type: typ.Dict
         self.__figure_plot = None  # type: plt.Figure
         self.__transition_time = 300
-        self.__frame_length = 1000
+        self.__frame_length = TemporalGraphFigure.DEFAULT_ANIMATION_FRAME_LENGTH
         self.toggle_animate_transitions(animate_transitions)
         self.__build_data_frames()
 
@@ -2191,7 +2193,7 @@ class UIDefaultStyleOptionsManager(object):
         )
 
         self.__animation_speed_text = widgets.IntText(
-            value=1000,
+            value=TemporalGraphFigure.DEFAULT_ANIMATION_FRAME_LENGTH,
             layout=widgets.Layout(width='12em'),
             description='Frame length:'
         )
