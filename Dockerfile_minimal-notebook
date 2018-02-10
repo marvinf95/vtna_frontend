@@ -13,15 +13,13 @@ USER jovyan
 ## Change to the users home as workdir
 WORKDIR /home/jovyan
 
-## Copy data for vtna package into the container
-RUN  git clone https://github.com/marvinf95/vtna.git
 ## Copy data for frontend into the container
 COPY frontend ./frontend
 
 ## Install required packages for the frontend
 RUN pip install --no-cache-dir -r frontend/requirements.txt --user
 ## Install the vtna package with its dependencies
-RUN pip install vtna/ --user
+RUN pip install --no-cache-dir git+https://github.com/marvinf95/vtna.git --user
 
 ## Add required jupyter extensions for the notebook
 RUN jupyter nbextension enable --py widgetsnbextension --user && jupyter nbextension install --py fileupload --user && jupyter nbextension enable --py fileupload --user

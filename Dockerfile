@@ -16,8 +16,6 @@ RUN adduser --system --uid 1000 vtna
 RUN mkdir -p /usr/src/vtna/
 WORKDIR /usr/src/vtna/
 
-# Copy the data for the package vtna
-RUN  git clone https://github.com/marvinf95/vtna.git
 # Copy the data for the frontend and the jupyter notebook
 COPY frontend ./frontend
 RUN chown -R vtna:1000 /usr/src/vtna/
@@ -27,7 +25,7 @@ USER vtna
 
 # Install the required python packages in the home of the user
 RUN pip install --no-cache-dir -r frontend/requirements.txt --user
-RUN pip install --no-cache-dir vtna/ --user
+RUN pip install --no-cache-dir git+https://github.com/marvinf95/vtna.git --user
 
 # Add the binaries from the home of the user vtna to the path
 ENV PATH="/home/vtna/.local/bin:${PATH}"
