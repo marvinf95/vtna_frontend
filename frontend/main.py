@@ -630,16 +630,14 @@ class UIGraphDisplayManager(object):
             value=1.0,
             min=0.1,
             max=100,
-            layout=parameter_widget_layout,
-            tooltip='Scales the distance between nodes'
+            layout=parameter_widget_layout
         )
         self.__layout_parameter_iterations_slider = widgets.IntSlider(
             description='Iterations:',
             value=50,
             min=1,
             max=500,
-            layout=parameter_widget_layout,
-            tooltip='Amount of iterations of force simulations'
+            layout=parameter_widget_layout
         )
 
         # Hyperparameters of PCA layout
@@ -648,24 +646,21 @@ class UIGraphDisplayManager(object):
             value=25,
             min=1,
             max=300,
-            layout=parameter_widget_layout,
-            tooltip=''
+            layout=parameter_widget_layout
         )
         self.__layout_parameter_PCA_repel_slider = widgets.FloatSlider(
             description='Repel:',
             value=1.0,
             min=0.1,
             max=100,
-            layout=parameter_widget_layout,
-            tooltip=''
+            layout=parameter_widget_layout
         )
         self.__layout_parameter_PCA_p_slider = widgets.IntSlider(
             description='p:',
             value=25,
             min=1,
             max=70,
-            layout=parameter_widget_layout,
-            tooltip=''
+            layout=parameter_widget_layout
         )
 
         self.__apply_layout_button = widgets.Button(
@@ -697,7 +692,6 @@ class UIGraphDisplayManager(object):
             description='Frame length:',
             disabled=False
         )
-        self.__export_frame_length_box = widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")])
         self.__export_range_slider = widgets.SelectionRangeSlider(
             options=[0],
             description='Time range:',
@@ -735,7 +729,7 @@ class UIGraphDisplayManager(object):
         self.__export_vbox.children = [
             self.__export_format_dropdown,
             widgets.HBox([self.__export_resolution, widgets.Label("pixels")]),
-            self.__export_frame_length_box,
+            widgets.HBox([self.__export_frame_length_box, widgets.Label(value="seconds")]),
             self.__export_range_slider,
             widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
