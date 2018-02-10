@@ -27,6 +27,9 @@ USER vtna
 RUN pip install --no-cache-dir -r frontend/requirements.txt --user
 RUN pip install --no-cache-dir git+https://github.com/marvinf95/vtna.git --user
 
+# Delete unnacessary files
+RUN rm frontend/requirements.txt
+
 # Add the binaries from the home of the user vtna to the path
 ENV PATH="/home/vtna/.local/bin:${PATH}"
 
