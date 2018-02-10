@@ -64,7 +64,10 @@ TOOLTIP = {
     'toggle_network_upload': 'Load file from URL',
     'graph_upload_button': 'Upload interactions over time',
     'metadata_upload_button': 'Upload node attributes',
-    'back_to_import_button': 'Open Import view. Resets all graph display settings.'
+    'back_to_import_button': 'Open Import view. Resets all graph display settings.',
+    'apply_queries_to_graph_button': 'Apply filters and highlights to displayed graph',
+    'add_query_button': 'Add Query with positive initial predicate',
+    'add_neg_query_button': 'Add Query with negated initial predicate'
 }
 
 
@@ -1011,15 +1014,21 @@ class UIGraphDisplayManager(object):
 class UIAttributeQueriesManager(object):
     RELEVANT_NODE_DISPLAY_LIMIT = 5
 
-    def __init__(self, temp_graph: vtna.graph.TemporalGraph, queries_main_vbox: widgets.VBox,
-                 filter_box_layout: widgets.Layout, query_html_template_path: str,
+    def __init__(self,
+                 temp_graph: vtna.graph.TemporalGraph,
+                 queries_main_vbox: widgets.VBox,
+                 filter_box_layout: widgets.Layout,
+                 query_html_template_path: str,
                  relevant_node_html_template_path: str):
         self.__queries_main_vbox = queries_main_vbox
         self.__filter_box_layout = filter_box_layout
         self.__temp_graph = temp_graph
         self.__attribute_info = temp_graph.get_attributes_info()
-        self.__attribute_info['Node ID'] = {'measurement_type': 'ID', 'scope': 'global',
-                                            'ids': [node.get_id() for node in temp_graph.get_nodes()]}
+        self.__attribute_info['Node ID'] = {
+            'measurement_type': 'ID',
+            'scope': 'global',
+            'ids': [node.get_id() for node in temp_graph.get_nodes()]
+        }
 
         with open(query_html_template_path, mode='rt') as f:
             self.__query_template = f.read()
@@ -1039,8 +1048,8 @@ class UIAttributeQueriesManager(object):
         self.__color_picker = None  # type: widgets.ColorPicker
         self.__color_picker_msg_html = None  # type: widgets.HTML
 
-        self.__boolean_combination_dropdown = None  # type: widgets.Dropdown
         self.__add_new_query_button = None  # type: widgets.Button
+        self.__add_new_neg_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
         self.__queries_output_box = None  # type: widgets.Box
 
@@ -1060,7 +1069,8 @@ class UIAttributeQueriesManager(object):
 
         self.__attributes_dropdown.observe(self.__build_on_attribute_change())
         self.__filter_highlight_toggle_buttons.observe(self.__build_on_mode_change())
-        self.__add_new_query_button.on_click(self.__build_add_query())
+        self.__add_new_query_button.on_click(self.__build_add_query(False))
+        self.__add_new_neg_query_button.on_click(self.__build_add_query(True))
         self.__delete_all_queries_button.on_click(self.__build_delete_all_queries())
 
     def __build_queries_menu(self):
@@ -1104,8 +1114,7 @@ class UIAttributeQueriesManager(object):
         self.__ordinal_value_selection_range_slider = widgets.SelectionRangeSlider(
             description='Value:',
             options=initial_attribute['categories'] if initial_attribute['measurement_type'] == 'O' else ['N/A'],
-            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (
-            0, 0),
+            index=(0, len(initial_attribute['categories']) - 1) if initial_attribute['measurement_type'] == 'O' else (0, 0),
             disabled=True if initial_attribute['measurement_type'] != 'O' else False,
             layout=widgets.Layout(width='99%')
         )
@@ -1117,13 +1126,23 @@ class UIAttributeQueriesManager(object):
             disabled=False
         )
         self.__color_picker.layout.display = 'flex-inline'
-        # Add new filter
+        # Add new query
         self.__add_new_query_button = widgets.Button(
             disabled=False,
-            description='Add new query',
+            description='Create Pos. Query',
             button_style='success',
             icon='plus',
-            layout=widgets.Layout(width='auto')
+            layout=widgets.Layout(width='auto'),
+            tooltip=TOOLTIP['add_query_button']
+        )
+        # Add new negated query
+        self.__add_new_neg_query_button = widgets.Button(
+            disabled=False,
+            description='Create Neg. Query',
+            button_style='success',
+            icon='minus',
+            layout=widgets.Layout(width='auto'),
+            tooltip=TOOLTIP['add_neg_query_button']
         )
         # Delete all queries
         self.__delete_all_queries_button = widgets.Button(
@@ -1140,12 +1159,7 @@ class UIAttributeQueriesManager(object):
             value='Highlight',
             button_style=''
         )
-        # Query operations ('New/Not' is used to refer to a new filter with a root clause)
-        self.__boolean_combination_dropdown = widgets.Dropdown(
-            options=['NEW', 'NOT'],
-            description='Operator:',
-            value='NEW'
-        )
+
         # display inputs depending on current initial data type
         if initial_attribute['measurement_type'] == 'O':
             self.__nominal_value_dropdown.layout.display = 'none'
@@ -1188,7 +1202,7 @@ class UIAttributeQueriesManager(object):
             description='Apply',
             disabled=False,
             button_style='primary',
-            tooltip='Apply Queries to Graph',
+            tooltip=TOOLTIP['apply_queries_to_graph_button'],
         )
         self.__apply_to_graph_button.on_click(lambda _: self.__notify_all())
 
@@ -1197,7 +1211,7 @@ class UIAttributeQueriesManager(object):
                                              self.__apply_to_graph_button])
         # Main toolbar : Operator Dropdown, Add Query Button
         main_toolbar_vbox = widgets.VBox(
-            [widgets.HBox([self.__boolean_combination_dropdown, self.__add_new_query_button]),
+            [widgets.HBox([self.__add_new_query_button, self.__add_new_neg_query_button]),
              self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
@@ -1289,15 +1303,12 @@ class UIAttributeQueriesManager(object):
 
     def __create_query_context(self, query_id) -> typ.Dict[str, typ.Any]:
         is_filter = self.in_filter_mode()
-        current_operator = self.__boolean_combination_dropdown.value
-        is_new = current_operator in ['NEW', 'NOT']
         is_active = query_id in self.__get_active_queries_reference()
 
         context = dict()
         context['query_id'] = str(query_id)
         context['toggle_state'] = ['fa-toggle-off', 'fa-toggle-on'][is_active]
         context['is_filter'] = is_filter
-        context['is_new'] = is_new
         context['color'] = self.__get_queries_reference()[query_id]['color']
         context['clauses'] = list()
         for key, clause in sorted(self.__get_queries_reference()[query_id]['clauses'].items(), key=lambda t: int(t[0])):
@@ -1350,7 +1361,7 @@ class UIAttributeQueriesManager(object):
                 'ID': self.__node_id_int_text.value  # int
                 }[attribute_type]
 
-    def __build_add_query(self) -> typ.Callable:
+    def __build_add_query(self, negated: bool) -> typ.Callable:
         def on_click(_):
             active_queries = self.__get_active_queries_reference()
             query_counter_read = self.__get_query_counter()
@@ -1368,7 +1379,7 @@ class UIAttributeQueriesManager(object):
             active_queries.append(query_counter_read)
             queries[query_counter_read] = \
                 {'color': self.__color_picker.value,
-                 'clauses': {1: {'operator': 'NOT' if self.__boolean_combination_dropdown.value == 'NOT' else 'NEW',
+                 'clauses': {1: {'operator': 'NOT' if negated else 'NEW',
                                  'value': (self.__attributes_dropdown.value, current_value)}}}
             w_0 = widgets.Text(description=str(query_counter_read), layout=widgets.Layout(display='none'))
             w_1 = widgets.HTML(value=' ', layout=widgets.Layout(display='inline-block'))
