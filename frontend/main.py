@@ -683,6 +683,12 @@ class UIGraphDisplayManager(object):
             value='gif',
             description='Format:',
         )
+        self.__export_resolution = widgets.BoundedIntText(
+            min=400,
+            max=10000,
+            value=500,
+            description='Size:'
+        )
         self.__export_frame_length_text = widgets.BoundedFloatText(
             value=0.5,
             min=0.01,
@@ -728,6 +734,7 @@ class UIGraphDisplayManager(object):
         self.__download_button.on_click(self.__build_export_video())
         self.__export_vbox.children = [
             self.__export_format_dropdown,
+            widgets.HBox([self.__export_resolution, widgets.Label("pixels")]),
             self.__export_frame_length_box,
             self.__export_range_slider,
             widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
@@ -975,6 +982,7 @@ class UIGraphDisplayManager(object):
             self.__video_export_manager = VideoExport(
                 figure=self.__figure.get_figure(),
                 video_format=self.__export_format_dropdown.value,
+                video_resolution=self.__export_resolution.value,
                 frame_length=self.__export_frame_length_text.value,
                 time_range=self.__export_range_slider.index,
                 speedup_empty_frames=self.__export_speedup_empty_frames_checkbox.value,
@@ -1968,6 +1976,7 @@ class VideoExport(object):
     def __init__(self,
                  figure: typ.Dict,
                  video_format: str,
+                 video_resolution: int,
                  frame_length: float,
                  time_range: typ.Tuple[int, int],
                  speedup_empty_frames: bool,
@@ -2002,7 +2011,7 @@ class VideoExport(object):
         else:
             raise ValueError('Unknown format: ' + video_format)
 
-        self.__init_figure(figure['layout']['sliders'][0]['steps'])
+        self.__init_figure(figure['layout']['sliders'][0]['steps'], video_resolution)
 
         self.__build_index = 0
         self.__written_frames = 0
@@ -2014,12 +2023,12 @@ class VideoExport(object):
     def get_output_path(self):
         return self.__export_filename + '.' + self.__video_format
 
-    def __init_figure(self, steps):
+    def __init_figure(self, steps, size: int):
         self.__figure = {'layout': {}}
         # First we build the layout of the plot that will be exported
         # TODO: Layout should be at least partially dependent/copied from original plotly layout
-        self.__figure['layout']['width'] = 500
-        self.__figure['layout']['height'] = 500
+        self.__figure['layout']['width'] = size
+        self.__figure['layout']['height'] = size
         self.__figure['layout']['showlegend'] = False
         # Make plot more compact
         self.__figure['layout']['margin'] = plotly.graph_objs.Margin(
