@@ -729,7 +729,7 @@ class UIGraphDisplayManager(object):
         self.__export_vbox.children = [
             self.__export_format_dropdown,
             widgets.HBox([self.__export_resolution, widgets.Label("pixels")]),
-            widgets.HBox([self.__export_frame_length_box, widgets.Label(value="seconds")]),
+            widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")]),
             self.__export_range_slider,
             widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
