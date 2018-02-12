@@ -56,7 +56,13 @@ HELP_TEXT = {
     'granularity': '<b>Interval length</b>: Width of time interval of each displayed frame.<br> '
                    'Interactions in each interval are aggregated.<br>',
     'column_ordinal_config': 'Select <b>Ordinal</b> to allow range queries for highlighting/filtering nodes.<br>'
-                             'Drag and drop to change order of categories. Order is <em>ascending</em>.'
+                             'Drag and drop to change order of categories. Order is <em>ascending</em>.',
+    'queries': "<b>Queries</b>: A series of clauses connected with operators, used to filter or highlight certain"
+               " nodes by attribute values.<br>"
+               "<b>Filter</b>: the nodes are filtered out of the graph.<br>"
+               "<b>Highlight</b>: the nodes are only highlighted in the graph.<br><br>"
+               "**Filter and highlight queries are maintained separately .<br>"
+               "**In case of conflict/overlap of queries, the oldest query overrides the youngest."
 }
 
 TOOLTIP = {
@@ -1053,6 +1059,7 @@ class UIAttributeQueriesManager(object):
         self.__add_new_query_button = None  # type: widgets.Button
         self.__add_new_neg_query_button = None  # type: widgets.Button
         self.__add_new_clause_msg_html = None  # type: widgets.HTML
+        self.__queries_help_button = None  # type: widgets.HTML
         self.__queries_output_box = None  # type: widgets.Box
 
         self.__relevant_nodes_overview_html = None  # type: widgets.HTML
@@ -1192,7 +1199,7 @@ class UIAttributeQueriesManager(object):
         self.__add_new_clause_msg_html = widgets.HTML(
             value="<span style='color:#7f8c8d'> Use the <i style='color:#2ecc71;' class='fa fa-plus-square'></i> "
                   "to add a clause to a query</span>")
-
+        self.__queries_help_button = help_widget(HELP_TEXT['queries'])
         self.__relevant_nodes_overview_html = widgets.HTML('', layout=widgets.Layout(height='8em'))
         self.__relevant_nodes_accordion = widgets.Accordion([self.__relevant_nodes_overview_html])
         self.__relevant_nodes_accordion.set_title(0, 'Overview: Queried Nodes')
@@ -1213,7 +1220,7 @@ class UIAttributeQueriesManager(object):
                                              self.__apply_to_graph_button])
         # Main toolbar : Operator Dropdown, Add Query Button
         main_toolbar_vbox = widgets.VBox(
-            [widgets.HBox([self.__add_new_query_button, self.__add_new_neg_query_button]),
+            [widgets.HBox([self.__add_new_query_button, self.__add_new_neg_query_button, self.__queries_help_button]),
              self.__add_new_clause_msg_html])
         # form BOX
         queries_form_vbox = widgets.VBox(
