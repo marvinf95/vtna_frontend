@@ -1635,8 +1635,8 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
 
 class NodeMeasuresManager(object):
     # A dictionary is used for easier returning of specific measures
-    node_measure_types = {
-        centrality.get_name(): centrality for centrality in
+    node_measure_classes = {
+        measure.get_name(): measure for measure in
         [
             vtna.node_measure.LocalDegreeCentrality,
             vtna.node_measure.GlobalDegreeCentrality,
@@ -1668,7 +1668,7 @@ class NodeMeasuresManager(object):
 
         # Instantiate and compute node measures
         self.__node_measures = dict(
-            [(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
+            [(nm, self.node_measure_classes[nm](temporal_graph)) for nm in requested_node_measures])
 
     def add_all_to_graph(self):
         """Adds all currently computed node measures to the temporal graph."""
