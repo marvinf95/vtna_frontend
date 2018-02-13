@@ -498,16 +498,14 @@ class UIDataUploadManager(object):
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
-        header = widgets.HTML("<h2>Available Measures:</h2>")
-        widget_list = [header]
+        html = "<h2>Available Measures:</h2>"
         for measure_name in NodeMeasuresManager.node_measure_types:
             self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
                 value=False,
                 description=NodeMeasuresManager.node_measure_types[measure_name].get_name(),
                 disabled=False
             )
-            widget_list.append(self.__measure_selection_checkboxes[measure_name])
-        container_box.children = widget_list
+        container_box.children = [widgets.HTML(html)]
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
@@ -1634,18 +1632,26 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
 
 
 class NodeMeasuresManager(object):
-    # A dictionary is used for easier returning of specific measures
-    node_measure_types = {
+    local_node_measure_types = {
         centrality.get_name(): centrality for centrality in
         [
             vtna.node_measure.LocalDegreeCentrality,
-            vtna.node_measure.GlobalDegreeCentrality,
             vtna.node_measure.LocalBetweennessCentrality,
-            vtna.node_measure.GlobalBetweennessCentrality,
             vtna.node_measure.LocalClosenessCentrality,
+        ]
+    }
+    global_node_measure_types = {
+        centrality.get_name(): centrality for centrality in
+        [
+            vtna.node_measure.GlobalDegreeCentrality,
+            vtna.node_measure.GlobalBetweennessCentrality,
             vtna.node_measure.GlobalClosenessCentrality
         ]
     }
+    # A dictionary is used for easier returning of specific measures
+    # This dict is a union of the both previous ones
+    node_measure_types = dict(local_node_measure_types)
+    node_measure_types.update(global_node_measure_types)
 
     def __init__(self, temporal_graph: vtna.graph.TemporalGraph, requested_node_measures: typ.List[str]):
         """
