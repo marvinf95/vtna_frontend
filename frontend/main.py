@@ -1636,12 +1636,15 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
 class NodeMeasuresManager(object):
     # A dictionary is used for easier returning of specific measures
     node_measure_types = {
-        'LOCAL_DEGREE_CENTRALITY': vtna.node_measure.LocalDegreeCentrality,
-        'GLOGAL_DEGREE_CENTRALITY': vtna.node_measure.GlobalDegreeCentrality,
-        'LOCAL_BETWEENNESS_CENTRALITY': vtna.node_measure.LocalBetweennessCentrality,
-        'GLOBAL_BETWEENNESS_CENTRALITY': vtna.node_measure.GlobalBetweennessCentrality,
-        'LOCAL_CLOSENESS_CENTRALITY': vtna.node_measure.LocalClosenessCentrality,
-        'GLOBAL_CLOSENESS_CENTRALITY': vtna.node_measure.GlobalClosenessCentrality
+        centrality.get_name(): centrality for centrality in
+        [
+            vtna.node_measure.LocalDegreeCentrality,
+            vtna.node_measure.GlobalDegreeCentrality,
+            vtna.node_measure.LocalBetweennessCentrality,
+            vtna.node_measure.GlobalBetweennessCentrality,
+            vtna.node_measure.LocalClosenessCentrality,
+            vtna.node_measure.GlobalClosenessCentrality
+        ]
     }
 
     def __init__(self, temporal_graph: vtna.graph.TemporalGraph, requested_node_measures: typ.List[str]):
