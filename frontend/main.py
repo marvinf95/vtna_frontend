@@ -499,15 +499,28 @@ class UIDataUploadManager(object):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
         header = widgets.HTML("<h2>Available Measures:</h2>")
-        widget_list = [header]
-        for measure_name in NodeMeasuresManager.node_measure_types:
-            self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
-                value=False,
-                description=NodeMeasuresManager.node_measure_types[measure_name].get_name(),
-                disabled=False
-            )
-            widget_list.append(self.__measure_selection_checkboxes[measure_name])
-        container_box.children = widget_list
+        local_checkboxes_vbox = widgets.VBox(children=[])
+        global_checkboxes_vbox = widgets.VBox(children=[])
+        measure_names_vbox = widgets.VBox(children=[])
+        for index in range(len(NodeMeasuresManager.node_measure_classes) // 2):
+            # Get measure names from static dict keys
+            local_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2]
+            global_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2 + 1]
+            measure_name = local_measure_name.replace("Local ", "")
+            # Add checkbox for local measure
+            local_checkbox = widgets.Checkbox()
+            self.__measure_selection_checkboxes[local_measure_name] = local_checkbox
+            local_checkboxes_vbox.children += local_checkbox,
+            # Add checkbox for global measure
+            global_checkbox = widgets.Checkbox()
+            self.__measure_selection_checkboxes[global_measure_name] = global_checkbox
+            global_checkboxes_vbox.children += global_checkbox,
+            # Add measure name
+            measure_names_vbox.children += widgets.Label(value=measure_name),
+        container_box.children = [
+            header,
+            widgets.HBox([local_checkboxes_vbox, global_checkboxes_vbox, measure_names_vbox])
+        ]
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
