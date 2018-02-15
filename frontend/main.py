@@ -499,20 +499,21 @@ class UIDataUploadManager(object):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
         header = widgets.HTML("<h2>Available Measures:</h2>")
-        local_checkboxes_vbox = widgets.VBox(children=[])
-        global_checkboxes_vbox = widgets.VBox(children=[])
-        measure_names_vbox = widgets.VBox(children=[])
+        local_checkboxes_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Local</b></p>')])
+        global_checkboxes_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Global</b></p>')])
+        measure_names_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Name</b></p>')])
+        checkbox_layout = widgets.Layout(width="4em")
         for index in range(len(NodeMeasuresManager.node_measure_classes) // 2):
             # Get measure names from static dict keys
             local_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2]
             global_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2 + 1]
             measure_name = local_measure_name.replace("Local ", "")
             # Add checkbox for local measure
-            local_checkbox = widgets.Checkbox()
+            local_checkbox = widgets.Checkbox(layout=checkbox_layout)
             self.__measure_selection_checkboxes[local_measure_name] = local_checkbox
             local_checkboxes_vbox.children += local_checkbox,
             # Add checkbox for global measure
-            global_checkbox = widgets.Checkbox()
+            global_checkbox = widgets.Checkbox(layout=checkbox_layout)
             self.__measure_selection_checkboxes[global_measure_name] = global_checkbox
             global_checkboxes_vbox.children += global_checkbox,
             # Add measure name
