@@ -499,9 +499,10 @@ class UIDataUploadManager(object):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
         header = widgets.HTML("<h2>Available Measures:</h2>")
-        local_checkboxes_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Local</b></p>')])
-        global_checkboxes_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Global</b></p>')])
-        measure_names_vbox = widgets.VBox([widgets.HTML('<p align="center"><b>Name</b></p>')])
+        vbox_layout = widgets.Layout(align_content="center")
+        local_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Local</b>')], layout=vbox_layout)
+        global_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Global</b>')], layout=vbox_layout)
+        measure_names_vbox = widgets.VBox([widgets.HTML('<b>Name</b>')], layout=vbox_layout)
         checkbox_layout = widgets.Layout(width="4em")
         for index in range(len(NodeMeasuresManager.node_measure_classes) // 2):
             # Get measure names from static dict keys
