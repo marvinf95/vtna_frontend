@@ -508,7 +508,7 @@ class UIDataUploadManager(object):
         local_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Local</b>')], layout=vbox_layout)
         global_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Global</b>')], layout=vbox_layout)
         measure_names_vbox = widgets.VBox([widgets.HTML('<b>Name</b>')], layout=vbox_layout)
-        checkbox_layout = widgets.Layout(width="4em")
+        checkbox_layout = widgets.Layout(width="3em", margin="2px 1em 2px 0")
         for index in range(len(NodeMeasuresManager.node_measure_classes) // 2):
             # Get measure names from static dict keys
             local_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2]
