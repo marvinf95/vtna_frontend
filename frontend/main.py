@@ -62,7 +62,12 @@ HELP_TEXT = {
                "<b>Filter</b>: the nodes are filtered out of the graph.<br>"
                "<b>Highlight</b>: the nodes are only highlighted in the graph.<br><br>"
                "**Filter and highlight queries are maintained separately .<br>"
-               "**In case of conflict/overlap of queries, the oldest query overrides the youngest."
+               "**In case of conflict/overlap of queries, the oldest query overrides the youngest.",
+    'measures_selection': '<b>Local</b> measures will be computed for each time interval, and '
+                          'only in regard to the nodes and edges existing there.<br>'
+                          '<b>Global</b> measures refer to the aggregated super graph over all '
+                          'timesteps.<br><br>'
+                          'Note that some centralities might take a long time to compute.'
 }
 
 TOOLTIP = {
@@ -498,7 +503,7 @@ class UIDataUploadManager(object):
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
-        header = widgets.HTML("<h2>Available Measures:</h2>")
+        header = widgets.HTML("<h3>Available Measures:</h3>")
         vbox_layout = widgets.Layout(align_content="center")
         local_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Local</b>')], layout=vbox_layout)
         global_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Global</b>')], layout=vbox_layout)
@@ -520,7 +525,7 @@ class UIDataUploadManager(object):
             # Add measure name
             measure_names_vbox.children += widgets.Label(value=measure_name),
         container_box.children = [
-            header,
+            widgets.HBox([header, help_widget(HELP_TEXT['measures_selection'])]),
             widgets.HBox([local_checkboxes_vbox, global_checkboxes_vbox, measure_names_vbox])
         ]
 
