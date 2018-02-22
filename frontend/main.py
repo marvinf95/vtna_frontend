@@ -47,12 +47,25 @@ HELP_TEXT = {
                     "Tab/Whitespace-separated as text or compressed.<br>"
                     "No header.<br>"
                     "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).<br>"
-                    "All other columns are ignored.",
+                    "All other columns are ignored.<br>"
+                    "<b>Example</b>:<br>"
+                    "<code>"
+                    "23940 1152 1089<br>"
+                    "23940 1152 1228<br>"
+                    "23960 1127 1146<br>"
+                    "23980 1152 1228</code><br>",
     'metadata_upload': "<b>Attributes</b>:<br>"
                        "Tab/Whitespace-separated as text or compressed.<br>"
                        "No header.<br>"
                        "Col. 1: Node (int).<br>"
-                       "Following columns are interpreted as nominal attributes.",
+                       "Following columns are interpreted as nominal attributes.<br>"
+                       "<b>Example</b>:<br>"
+                       "<code>"
+                       "954 2BIO1 F<br>"
+                       "859 2BIO1 M<br>"
+                       "489 2BIO1 F<br>"
+                       "991 2BIO1 M<br>"
+                       "</code>",
     'granularity': '<b>Interval length</b>: Width of time interval of each displayed frame.<br> '
                    'Interactions in each interval are aggregated.<br>',
     'column_ordinal_config': 'Select <b>Ordinal</b> to allow range queries for highlighting/filtering nodes.<br>'

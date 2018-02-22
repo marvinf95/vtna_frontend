@@ -11,7 +11,7 @@
 	background-color:#eeeefe;
 	border: 1px solid #aaaaca;
 	padding:0.25em;
-	width: 20%;
+	max-width: 25%;
     height: auto;
 	box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
 	-moz-box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
