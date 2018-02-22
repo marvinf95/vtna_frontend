@@ -28,7 +28,7 @@ import vtna.utility
 from ipywidgets import widgets
 
 
-def help_widget(text) -> widgets.HTML:
+def help_widget(text, style='') -> widgets.HTML:
     help_icon = f'<img class="helpwidget" ' \
                 f'     title="{text}" ' \
                 f'     onload="helpwidget_onload(this)" ' \
@@ -36,7 +36,7 @@ def help_widget(text) -> widgets.HTML:
                 f'     onclick="helpwidget_onclick(this)" ' \
                 f'     onmouseout="helpwidget_onmouseout(this)" ' \
                 f'     src="images/help.png" ' \
-                f'     style="max-width: 16px;" ' \
+                f'     style="max-width: 16px; {style}" ' \
                 f'     alt="help icon"/>'
     return widgets.HTML(help_icon)
 
@@ -525,7 +525,7 @@ class UIDataUploadManager(object):
             # Add measure name
             measure_names_vbox.children += widgets.Label(value=measure_name),
         container_box.children = [
-            widgets.HBox([header, help_widget(HELP_TEXT['measures_selection'])]),
+            widgets.HBox([header, help_widget(HELP_TEXT['measures_selection'], style='padding-top: 1.75em;')]),
             widgets.HBox([local_checkboxes_vbox, global_checkboxes_vbox, measure_names_vbox])
         ]
 
