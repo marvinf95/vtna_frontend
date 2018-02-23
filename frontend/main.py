@@ -723,11 +723,11 @@ class UIGraphDisplayManager(object):
             value=500,
             description='Size:'
         )
-        self.__export_frame_length_text = widgets.BoundedFloatText(
-            value=0.5,
-            min=0.01,
-            max=10.0,
-            step=0.01,
+        self.__export_frame_length_text = widgets.BoundedIntText(
+            value=500,
+            min=10,
+            max=10000,
+            step=10,
             description='Frame length:',
             disabled=False
         )
@@ -768,7 +768,7 @@ class UIGraphDisplayManager(object):
         self.__export_vbox.children = [
             self.__export_format_dropdown,
             widgets.HBox([self.__export_resolution, widgets.Label("pixels")]),
-            widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")]),
+            widgets.HBox([self.__export_frame_length_text, widgets.Label(value="ms")]),
             self.__export_range_slider,
             widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
@@ -905,8 +905,10 @@ class UIGraphDisplayManager(object):
     def __build_configure_export(self) -> typ.Callable:
         def on_configure_export(change):
             if change['type'] == 'change' and change['name'] == 'value':
+                # If user wants a sped up gif and
+                # sped up frame length is smaller than minimum of 10ms
                 if self.__export_format_dropdown.value == 'gif' and \
-                        self.__export_frame_length_text.value / 10 < 0.01 and \
+                        self.__export_frame_length_text.value / 10 < 10 and \
                         self.__export_speedup_empty_frames_checkbox.value:
                     self.__export_speedup_warning.layout.display = 'inline-flex'
                 else:
@@ -2014,7 +2016,7 @@ class VideoExport(object):
                  figure: typ.Dict,
                  video_format: str,
                  video_resolution: int,
-                 frame_length: float,
+                 frame_length: int,
                  time_range: typ.Tuple[int, int],
                  speedup_empty_frames: bool,
                  initialize_progressbar: typ.Callable,
@@ -2024,6 +2026,8 @@ class VideoExport(object):
         # with the closing of the writer and the progress bar
         self.__frames = figure['frames']
         self.__frame_count = time_range[1] - time_range[0]
+        # Milliseconds are converted to seconds
+        frame_length /= 1000
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
