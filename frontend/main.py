@@ -62,7 +62,10 @@ HELP_TEXT = {
                "<b>Filter</b>: the nodes are filtered out of the graph.<br>"
                "<b>Highlight</b>: the nodes are only highlighted in the graph.<br><br>"
                "**Filter and highlight queries are maintained separately .<br>"
-               "**In case of conflict/overlap of queries, the oldest query overrides the youngest."
+               "**In case of conflict/overlap of queries, the oldest query overrides the youngest.",
+    "statistics":"Different types of plots are provided depending on the type of the attribute<br>"
+                 "Interval/numerical attributes are shown as histograms <br>"
+                 "Categorical/Ordinal attributes are shown as horizontal bar charts"
 }
 
 TOOLTIP = {
@@ -2272,6 +2275,7 @@ class UIStatisticsManager(object):
                  node_summary_hbox: widgets.HBox,
                  node_search_vbox: widgets.VBox,
                  node_detailed_view_vbox: widgets.VBox,
+                 graph_plots_hbox: widgets.HBox,
                  graph_summary_template_path: str,
                  graph_header_template_path: str
                  ):
@@ -2288,12 +2292,25 @@ class UIStatisticsManager(object):
         with open(graph_header_template_path) as f:
             self.__graph_header_template = f.read()
 
+        self.__global_degree_distribution_plot = widgets.Output()
+        self.__edge_bar_plot = widgets.Output()
+        self.__attributes_dropdown = widgets.Dropdown(description='Attribute:')
+        self.__attribute_plot = widgets.Output()
+        header_hbox = widgets.HBox([widgets.HTML("All statistics shown are <b>global</b>"),
+                                    help_widget(HELP_TEXT['statistics'])],
+                                   layout=widgets.Layout(justify_content='center'))
+        graph_plots_hbox.children = [widgets.VBox([header_hbox,self.__edge_bar_plot]),
+                                     widgets.VBox([self.__attributes_dropdown,self.__attribute_plot])]
+        self.__attribute_info = None
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
 
     def load(self, temp_graph: vtna.graph.TemporalGraph):
         self.__temp_graph = temp_graph
+        self.__attribute_info = self.__temp_graph.get_attributes_info()
         self.__display_graph_header()
         self.__display_graph_summary()
+        self.__display_edge_bar_plot()
+        self.__build_attribute_dropdown()
 
     def __display_graph_header(self):
         if self.__temp_graph is None:
@@ -2330,3 +2347,55 @@ class UIStatisticsManager(object):
                                    'avg_clustering_coefficient': avg_clustering_coefficient
                                })
         self.__graph_summary_html.value = html
+
+    def __display_edge_bar_plot(self):
+        if self.__temp_graph is None:
+            return
+        timstamps = range(0,self.__temp_graph.__len__())
+        edges = [len(graph.get_edges()) for graph in self.__temp_graph.__iter__()]
+        plt.bar(timstamps,edges)
+        plt.xlabel('Time step (granularity)')
+        plt.ylabel('Number of edges')
+        plt.title('Number of edges over time')
+        with self.__edge_bar_plot:
+            plt.show()
+
+    def __build_statistics_plot(self,attribute_value):
+        selected_attribute = self.__attribute_info[attribute_value]
+        attribute_values = [n.get_global_attribute(attribute_value) for n in
+                            self.__temp_graph.get_nodes()]
+        if selected_attribute['measurement_type'] == 'I':
+            plt.hist(attribute_values, 75, alpha=0.75)
+            plt.xlabel(attribute_value)
+            plt.ylabel('Counts')
+            plt.title(attribute_value + " distribution")
+        else:
+            categories = selected_attribute['categories']
+            counts = [attribute_values.count(c) for c in categories]
+            plt.barh(categories, counts, align='center')
+            plt.xlabel(attribute_value)
+            plt.ylabel('Counts')
+            plt.title(attribute_value + " distribution")
+        with self.__attribute_plot:
+            ipydisplay.clear_output()
+            plt.show()
+        plt.clf()
+
+    def __build_attribute_dropdown(self):
+        if self.__temp_graph is None:
+            return
+
+        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', self.__attribute_info.keys()))
+        # Attribute drop down
+        self.__attributes_dropdown.options = attributes
+        self.__attributes_dropdown.observe(self.__build_on_attribute_change())
+        self.__build_statistics_plot(attributes[0])
+
+    def __build_on_attribute_change(self):
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__build_statistics_plot(self.__attributes_dropdown.value)
+
+        return on_change
+
+
