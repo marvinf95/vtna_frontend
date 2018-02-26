@@ -28,7 +28,7 @@ import vtna.utility
 from ipywidgets import widgets
 
 
-def help_widget(text) -> widgets.HTML:
+def help_widget(text, style='') -> widgets.HTML:
     help_icon = f'<img class="helpwidget" ' \
                 f'     title="{text}" ' \
                 f'     onload="helpwidget_onload(this)" ' \
@@ -36,7 +36,7 @@ def help_widget(text) -> widgets.HTML:
                 f'     onclick="helpwidget_onclick(this)" ' \
                 f'     onmouseout="helpwidget_onmouseout(this)" ' \
                 f'     src="images/help.png" ' \
-                f'     style="max-width: 16px;" ' \
+                f'     style="max-width: 16px; {style}" ' \
                 f'     alt="help icon"/>'
     return widgets.HTML(help_icon)
 
@@ -47,12 +47,25 @@ HELP_TEXT = {
                     "Tab/Whitespace-separated as text or compressed.<br>"
                     "No header.<br>"
                     "Col. 1: Timestamp (int), Col. 2: Node (int), Col. 3: Node (int).<br>"
-                    "All other columns are ignored.",
+                    "All other columns are ignored.<br>"
+                    "<b>Example</b>:<br>"
+                    "<code>"
+                    "23940 1152 1089<br>"
+                    "23940 1152 1228<br>"
+                    "23960 1127 1146<br>"
+                    "23980 1152 1228</code><br>",
     'metadata_upload': "<b>Attributes</b>:<br>"
                        "Tab/Whitespace-separated as text or compressed.<br>"
                        "No header.<br>"
                        "Col. 1: Node (int).<br>"
-                       "Following columns are interpreted as nominal attributes.",
+                       "Following columns are interpreted as nominal attributes.<br>"
+                       "<b>Example</b>:<br>"
+                       "<code>"
+                       "954 2BIO1 F<br>"
+                       "859 2BIO1 M<br>"
+                       "489 2BIO1 F<br>"
+                       "991 2BIO1 M<br>"
+                       "</code>",
     'granularity': '<b>Interval length</b>: Width of time interval of each displayed frame.<br> '
                    'Interactions in each interval are aggregated.<br>',
     'column_ordinal_config': 'Select <b>Ordinal</b> to allow range queries for highlighting/filtering nodes.<br>'
@@ -63,6 +76,11 @@ HELP_TEXT = {
                "<b>Highlight</b>: the nodes are only highlighted in the graph.<br><br>"
                "**Filter and highlight queries are maintained separately .<br>"
                "**In case of conflict/overlap of queries, the oldest query overrides the youngest.",
+    'measures_selection': '<b>Local</b> measures will be computed for each time interval, and '
+                          'only in regard to the nodes and edges existing there.<br>'
+                          '<b>Global</b> measures refer to the aggregated super graph over all '
+                          'timesteps.<br><br>'
+                          'Note that some centralities might take a long time to compute.',
     "statistics":"Different types of plots are provided depending on the type of the attribute<br>"
                  "Interval/numerical attributes are shown as histograms <br>"
                  "Categorical/Ordinal attributes are shown as horizontal bar charts"
@@ -501,16 +519,31 @@ class UIDataUploadManager(object):
     def __display_measure_selection(self, container_box: widgets.Box):
         # Reset internal widget dict
         self.__measure_selection_checkboxes = {}
-        header = widgets.HTML("<h2>Available Measures:</h2>")
-        widget_list = [header]
-        for measure_name in NodeMeasuresManager.node_measure_types:
-            self.__measure_selection_checkboxes[measure_name] = widgets.Checkbox(
-                value=False,
-                description=NodeMeasuresManager.node_measure_types[measure_name].get_name(),
-                disabled=False
-            )
-            widget_list.append(self.__measure_selection_checkboxes[measure_name])
-        container_box.children = widget_list
+        header = widgets.HTML("<h3>Available Measures:</h3>")
+        vbox_layout = widgets.Layout(align_content="center")
+        local_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Local</b>')], layout=vbox_layout)
+        global_checkboxes_vbox = widgets.VBox([widgets.HTML('<b>Global</b>')], layout=vbox_layout)
+        measure_names_vbox = widgets.VBox([widgets.HTML('<b>Name</b>')], layout=vbox_layout)
+        checkbox_layout = widgets.Layout(width="3em", margin="2px 1em 2px 0")
+        for index in range(len(NodeMeasuresManager.node_measure_classes) // 2):
+            # Get measure names from static dict keys
+            local_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2]
+            global_measure_name = list(NodeMeasuresManager.node_measure_classes.keys())[index * 2 + 1]
+            measure_name = local_measure_name.replace("Local ", "")
+            # Add checkbox for local measure
+            local_checkbox = widgets.Checkbox(layout=checkbox_layout)
+            self.__measure_selection_checkboxes[local_measure_name] = local_checkbox
+            local_checkboxes_vbox.children += local_checkbox,
+            # Add checkbox for global measure
+            global_checkbox = widgets.Checkbox(layout=checkbox_layout)
+            self.__measure_selection_checkboxes[global_measure_name] = global_checkbox
+            global_checkboxes_vbox.children += global_checkbox,
+            # Add measure name
+            measure_names_vbox.children += widgets.Label(value=measure_name),
+        container_box.children = [
+            widgets.HBox([header, help_widget(HELP_TEXT['measures_selection'], style='padding-top: 1.75em;')]),
+            widgets.HBox([local_checkboxes_vbox, global_checkboxes_vbox, measure_names_vbox])
+        ]
 
 
 def print_edge_stats(edges: typ.List[vtna.data_import.TemporalEdge]):
@@ -693,11 +726,11 @@ class UIGraphDisplayManager(object):
             value=500,
             description='Size:'
         )
-        self.__export_frame_length_text = widgets.BoundedFloatText(
-            value=0.5,
-            min=0.01,
-            max=10.0,
-            step=0.01,
+        self.__export_frame_length_text = widgets.BoundedIntText(
+            value=500,
+            min=10,
+            max=10000,
+            step=10,
             description='Frame length:',
             disabled=False
         )
@@ -738,7 +771,7 @@ class UIGraphDisplayManager(object):
         self.__export_vbox.children = [
             self.__export_format_dropdown,
             widgets.HBox([self.__export_resolution, widgets.Label("pixels")]),
-            widgets.HBox([self.__export_frame_length_text, widgets.Label(value="seconds")]),
+            widgets.HBox([self.__export_frame_length_text, widgets.Label(value="ms")]),
             self.__export_range_slider,
             widgets.HBox([self.__export_speedup_empty_frames_checkbox, self.__export_speedup_warning]),
             widgets.HBox([self.__download_button, self.__export_progressbar])
@@ -875,8 +908,10 @@ class UIGraphDisplayManager(object):
     def __build_configure_export(self) -> typ.Callable:
         def on_configure_export(change):
             if change['type'] == 'change' and change['name'] == 'value':
+                # If user wants a sped up gif and
+                # sped up frame length is smaller than minimum of 10ms
                 if self.__export_format_dropdown.value == 'gif' and \
-                        self.__export_frame_length_text.value / 10 < 0.01 and \
+                        self.__export_frame_length_text.value / 10 < 10 and \
                         self.__export_speedup_empty_frames_checkbox.value:
                     self.__export_speedup_warning.layout.display = 'inline-flex'
                 else:
@@ -1638,13 +1673,16 @@ def build_predicate(raw_predicate: typ.Dict, attribute_info: typ.Dict) \
 
 class NodeMeasuresManager(object):
     # A dictionary is used for easier returning of specific measures
-    node_measure_types = {
-        'LOCAL_DEGREE_CENTRALITY': vtna.node_measure.LocalDegreeCentrality,
-        'GLOGAL_DEGREE_CENTRALITY': vtna.node_measure.GlobalDegreeCentrality,
-        'LOCAL_BETWEENNESS_CENTRALITY': vtna.node_measure.LocalBetweennessCentrality,
-        'GLOBAL_BETWEENNESS_CENTRALITY': vtna.node_measure.GlobalBetweennessCentrality,
-        'LOCAL_CLOSENESS_CENTRALITY': vtna.node_measure.LocalClosenessCentrality,
-        'GLOBAL_CLOSENESS_CENTRALITY': vtna.node_measure.GlobalClosenessCentrality
+    node_measure_classes = {
+        measure.get_name(): measure for measure in
+        [
+            vtna.node_measure.LocalDegreeCentrality,
+            vtna.node_measure.GlobalDegreeCentrality,
+            vtna.node_measure.LocalBetweennessCentrality,
+            vtna.node_measure.GlobalBetweennessCentrality,
+            vtna.node_measure.LocalClosenessCentrality,
+            vtna.node_measure.GlobalClosenessCentrality
+        ]
     }
 
     def __init__(self, temporal_graph: vtna.graph.TemporalGraph, requested_node_measures: typ.List[str]):
@@ -1668,7 +1706,7 @@ class NodeMeasuresManager(object):
 
         # Instantiate and compute node measures
         self.__node_measures = dict(
-            [(nm, self.node_measure_types[nm](temporal_graph)) for nm in requested_node_measures])
+            [(nm, self.node_measure_classes[nm](temporal_graph)) for nm in requested_node_measures])
 
     def add_all_to_graph(self):
         """Adds all currently computed node measures to the temporal graph."""
@@ -1981,7 +2019,7 @@ class VideoExport(object):
                  figure: typ.Dict,
                  video_format: str,
                  video_resolution: int,
-                 frame_length: float,
+                 frame_length: int,
                  time_range: typ.Tuple[int, int],
                  speedup_empty_frames: bool,
                  initialize_progressbar: typ.Callable,
@@ -1991,6 +2029,8 @@ class VideoExport(object):
         # with the closing of the writer and the progress bar
         self.__frames = figure['frames']
         self.__frame_count = time_range[1] - time_range[0]
+        # Milliseconds are converted to seconds
+        frame_length /= 1000
         # There are two steps for every frame: Extracting via js and writing to gif
         initialize_progressbar(self.__frame_count * 2)
         self.__increment_progress = increment_progress  # type: typ.Callable
