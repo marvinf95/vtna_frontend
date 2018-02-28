@@ -2,11 +2,9 @@
 ![University Koblenz-Landau](frontend/images/university_koblenz_logo.jpg?raw=true "Logo of the university Koblenz-Landau")
 
 # What is VTNA?
-
 VTNA (Virtual Temporary Network with Attributes) is a [Jupyter Notebook](https://jupyter.org/) for face-to-face visualization of for example conferences. Example data can be found on [Sociopatterns](http://www.sociopatterns.org/).
 
 # Supported tags and respective `Dockerfile` links
-
 -	[`latest`, `python0.1` (*Dockerfile*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile)
 -	[`alpine0.1` (*Dockerfile_alpine*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile_alpine)
 -	[`minimal-notebook0.1` (*Dockerfile_minimal-notebook*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile_minimal-notebook)
@@ -40,41 +38,35 @@ docker rmi marvinf/vtna:python0.1
 ```
 
 ## Additionally, If you want to use your own notebook ...
-
 You can create your own Dockerfile that adds a notebook from the context into frontend/, like so.
-
-TODO: test
 ```dockerfile
-FROM vtna:$TAG
+FROM marvinf/vtna:$TAG
 USER vtna
 WORKDIR /usr/src/vtna/
 COPY $YOURNOTEBOOKNAME frontend/
 CMD jupyter notebook --ip 0.0.0.0 --no-browser frontend/
 ```
-
-Alternatively, you can specify something along the same lines with `docker run` options.
-
-TODO: test and complete
 ```console
-$ docker run -v $MYNOTEBOOK:/usr/src/vtna/frontend/$MYNOTEBOOK --name vtna
+$ docker build -t vtna_test:1 .
+$ docker run -t -p 8888:8888 --name vtna_test vtna_test:1
 ```
 
-Using this method means that there is no need for you to have a Dockerfile for your redis container.
+Alternatively, you can specify something along the same lines with `docker run` options.
+```console
+docker run -it -p 8888:8888 -u vtna -w /usr/src/vtna/ -v prelim_analysis.ipynb:/usr/src/vtna/frontend/prelim_analysis.ipynb --name vtna_test marvinf/vtna:python0.1 jupyter notebook --ip 0.0.0.0 --no-browser frontend/
+```
+Using this method means that there is no need for you to have a Dockerfile for your vtna container.
 
 # Image Variants
-
 The `vtna` images come in many flavors, each designed for a specific use case.
 
 ## `vtna:<version>`
-
 This is the defacto image. If you are unsure about what your needs are, you probably want to use this one. It is designed to be used both as a throw away container (mount your source code and start the container to start your app), as well as the base to build other images off of.
 
 ## `vtna:minimal-notebook`
-
 This image is based on the [Jupyter Notebook minimal image](https://hub.docker.com/r/jupyter/minimal-notebook/). It is useful if you want to test and add some code to the application. For that, the most common python modules are already installed. Because of that it's larger than the other images.
 
 ## `vtna:alpine`
-
 This image is based on the popular [Alpine Linux project](http://alpinelinux.org), available in [the `alpine` official image](https://hub.docker.com/_/alpine). Alpine Linux is much smaller than most distribution base images (~5MB), and thus leads to much slimmer images in general.
 
 This variant is highly recommended when final image size being as small as possible is desired. The main caveat to note is that it does use [musl libc](http://www.musl-libc.org) instead of [glibc and friends](http://www.etalabs.net/compare_libcs.html), so certain software might run into issues depending on the depth of their libc requirements. However, most software doesn't have an issue with this, so this variant is usually a very safe choice. See [this Hacker News comment thread](https://news.ycombinator.com/item?id=10782897) for more discussion of the issues that might arise and some pro/con comparisons of using Alpine-based images.
@@ -82,7 +74,6 @@ This variant is highly recommended when final image size being as small as possi
 To minimize image size, it's uncommon for additional related tools (such as `git` or `bash`) to be included in Alpine-based images. Using this image as a base, add the things you need in your own Dockerfile (see the [`alpine` image description](https://hub.docker.com/_/alpine/) for examples of how to install packages if you are unfamiliar).
 
 # Quick reference
-
 -	**Where to get help**:  
 	[the Docker Community Forums](https://forums.docker.com/), [the Docker Community Slack](https://blog.docker.com/2016/11/introducing-docker-community-directory-docker-community-slack/), or [Stack Overflow](https://stackoverflow.com/search?tab=newest&q=docker)
 
@@ -105,7 +96,6 @@ To minimize image size, it's uncommon for additional related tools (such as `git
 	[the latest release](https://github.com/docker/docker-ce/releases/latest) (down to 1.6 on a best-effort basis)
 
 # License
-
 View [license information](https://github.com/marvinf95/vtna_frontend/blob/master/LICENSE) for the software contained in this image.
 
 As with all Docker images, these likely also contain other software which may be under other licenses (such as Bash, etc from the base distribution, along with any direct or indirect dependencies of the primary software being contained).
