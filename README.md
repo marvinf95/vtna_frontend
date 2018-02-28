@@ -25,16 +25,16 @@ $ docker run -t -p 8888:8888 --name vtna marvinf/vtna:python0.1
 After the start you can open the notebook by copying the shown link in the terminal to the browser.
 
 ### Stop and start container
-```bash
-docker stop vtna
-docker start vtna
+```console
+$ docker stop vtna
+$ docker start vtna
 ```
 
 ### Cleanup
 Delete the docker container and the image.
-```bash
-docker stop vtna && docker rm vtna
-docker rmi marvinf/vtna:python0.1
+```console
+$ docker stop vtna && docker rm vtna
+$ docker rmi marvinf/vtna:python0.1
 ```
 
 ## Additionally, If you want to use your own notebook ...
@@ -43,18 +43,19 @@ You can create your own Dockerfile that adds a notebook from the context into fr
 FROM marvinf/vtna:$TAG
 USER vtna
 WORKDIR /usr/src/vtna/
-COPY $YOURNOTEBOOKNAME frontend/
+COPY $NOTEBOOK frontend/
 CMD jupyter notebook --ip 0.0.0.0 --no-browser frontend/
 ```
 ```console
-$ docker build -t vtna_test:1 .
-$ docker run -t -p 8888:8888 --name vtna_test vtna_test:1
+$ docker build -t vtna_private_notebook:1 .
+$ docker run -t -p 8888:8888 --name vtna_private_notebook vtna_private_notebook:1
 ```
 
 Alternatively, you can specify something along the same lines with `docker run` options.
 ```console
-docker run -it -p 8888:8888 -u vtna -w /usr/src/vtna/ -v prelim_analysis.ipynb:/usr/src/vtna/frontend/prelim_analysis.ipynb --name vtna_test marvinf/vtna:python0.1 jupyter notebook --ip 0.0.0.0 --no-browser frontend/
+$ docker run -it -p 8888:8888 -u vtna -w /usr/src/vtna/ -v $(pwd)/notebook/$NOTEBOOK:/usr/src/vtna/frontend/$NOTEBOOK --name vtna_private_notebook marvinf/vtna:&TAG jupyter notebook --ip 0.0.0.0 --no-browser frontend/
 ```
+(Notebook must be in a folder, cause otherwise the notebook is created not as a file in the container.)
 Using this method means that there is no need for you to have a Dockerfile for your vtna container.
 
 # Image Variants
