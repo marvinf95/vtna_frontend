@@ -1,16 +1,15 @@
 # Visualize Network Dynamics
+![University Koblenz-Landau](frontend/images/university_koblenz_logo.jpg?raw=true "Logo of the university Koblenz-Landau")
 
-# In creation
-TODO: Logo uni ![logo]()
+# What is VTNA?
+
+VTNA (Virtual Temporary Network with Attributes) is a [Jupyter Notebook](https://jupyter.org/) for face-to-face visualization of for example conferences. Example data can be found on [Sociopatterns](http://www.sociopatterns.org/).
+
 # Supported tags and respective `Dockerfile` links
 
 -	[`latest`, `python0.1` (*Dockerfile*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile)
 -	[`alpine0.1` (*Dockerfile_alpine*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile_alpine)
 -	[`minimal-notebook0.1` (*Dockerfile_minimal-notebook*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile_minimal-notebook)
-
-# What is VTNA?
-
-VTNA (Virtual Temporary Network with Attributes) is a [Jupyter Notebook](https://jupyter.org/) for face-to-face visualization of for example conferences. Example data can be found on [Sociopatterns](http://www.sociopatterns.org/).
 
 # How to use this image
 
