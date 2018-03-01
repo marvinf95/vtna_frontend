@@ -7,14 +7,15 @@ USER root
 RUN apt-get update
 RUN apt-get -y install ffmpeg
 
+## Copy data for frontend into the container
+COPY frontend ./frontend
+RUN chown -R jovyan:1000 /usr/src/vtna/
+
 ## User from the minimal notebook
 USER jovyan
 
 ## Change to the users home as workdir
 WORKDIR /home/jovyan
-
-## Copy data for frontend into the container
-COPY frontend ./frontend
 
 ## Install required packages for the frontend
 RUN pip install --no-cache-dir -r frontend/requirements.txt --user
