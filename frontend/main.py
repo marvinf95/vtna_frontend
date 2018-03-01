@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import plotly
 import plotly.graph_objs
 import pystache
+import seaborn as sns
 import vtna.data_import
 import vtna.filter
 import vtna.graph
@@ -2335,6 +2336,7 @@ class UIStatisticsManager(object):
         self.__global_degree_distribution_plot = widgets.Output()
         self.__edge_bar_plot = widgets.Output()
         self.__attributes_dropdown = widgets.Dropdown(description='Attribute:')
+        self.__attributes_dropdown.layout.display = 'none'
         self.__attribute_plot = widgets.Output()
         header_hbox = widgets.HBox([widgets.HTML("All statistics shown are <b>global</b>"),
                                     help_widget(HELP_TEXT['statistics'])],
@@ -2349,7 +2351,7 @@ class UIStatisticsManager(object):
         self.__attribute_info = self.__temp_graph.get_attributes_info()
         self.__display_graph_header()
         self.__display_graph_summary()
-        self.__display_edge_bar_plot()
+        self.__display_interaction_distribution_plot()
         self.__build_attribute_dropdown()
 
     def __display_graph_header(self):
@@ -2388,21 +2390,48 @@ class UIStatisticsManager(object):
                                })
         self.__graph_summary_html.value = html
 
-    def __display_edge_bar_plot(self):
+    def __display_interaction_distribution_plot(self):
         if self.__temp_graph is None:
             return
-        timstamps = range(0,self.__temp_graph.__len__())
-        edges = [len(graph.get_edges()) for graph in self.__temp_graph.__iter__()]
-        _ = plt.figure()
-        _ = plt.bar(timstamps, edges)
-        plt.xlabel('Time step (granularity)')
-        plt.ylabel('Number of edges')
-        plt.title('Number of edges over time')
+        timestamps = [timestamp for graph in self.__temp_graph for edge in graph.get_edges() for timestamp in edge.get_timestamps()]
+        # Normalize timestamps, scale to minutes
+        earliest = min(timestamps)
+        timestamps = [(timestamp-earliest)/3600.0 for timestamp in timestamps]
+        fig = plt.figure()
+        ax = fig.gca()
+        _ = sns.distplot(timestamps, hist=True, kde=True, bins=len(self.__temp_graph))
+        plt.xlabel('Time in hours')
+        plt.ylabel('Interactions')
+        plt.title('Distribution of interactions over time')
+        # Replace density values on yaxis with counts
+        total = len(timestamps)
+        locs, _ = plt.yticks()
+        ax.set_yticklabels([int(total*density) for density in locs])
         with self.__edge_bar_plot:
             ipydisplay.clear_output()
             plt.show()
 
-    def __build_statistics_plot(self,attribute_value):
+    def __build_attribute_dropdown(self):
+        if self.__temp_graph is None:
+            return
+
+        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', self.__attribute_info.keys()))
+
+        if len(attributes) >= 1:
+            # Attribute drop down
+            self.__attributes_dropdown.options = attributes
+            self.__attributes_dropdown.observe(self.__build_on_attribute_change())
+            self.__attributes_dropdown.layout.display = 'block'
+            self.__build_statistics_plot(attributes[0])
+
+    def __build_on_attribute_change(self):
+        def on_change(change):
+            if change['type'] == 'change' and change['name'] == 'value':
+                self.__build_statistics_plot(self.__attributes_dropdown.value)
+
+        return on_change
+
+    def __build_statistics_plot(self, attribute_value):
         selected_attribute = self.__attribute_info[attribute_value]
         attribute_values = [n.get_global_attribute(attribute_value) for n in
                             self.__temp_graph.get_nodes()]
@@ -2419,22 +2448,3 @@ class UIStatisticsManager(object):
         with self.__attribute_plot:
             ipydisplay.clear_output()
             plt.show()
-
-    def __build_attribute_dropdown(self):
-        if self.__temp_graph is None:
-            return
-
-        attributes = list(filter(lambda a: self.__attribute_info[a]['scope'] == 'global', self.__attribute_info.keys()))
-        # Attribute drop down
-        self.__attributes_dropdown.options = attributes
-        self.__attributes_dropdown.observe(self.__build_on_attribute_change())
-        self.__build_statistics_plot(attributes[0])
-
-    def __build_on_attribute_change(self):
-        def on_change(change):
-            if change['type'] == 'change' and change['name'] == 'value':
-                self.__build_statistics_plot(self.__attributes_dropdown.value)
-
-        return on_change
-
-
