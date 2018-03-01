@@ -19,7 +19,7 @@ RUN chown -R jovyan:1000 /usr/src/vtna/
 USER jovyan
 
 ## Change to the users home as workdir
-WORKDIR /home/jovyan
+WORKDIR /usr/src/vtna/
 
 ## Install required packages for the frontend
 RUN pip install --no-cache-dir -r frontend/requirements.txt --user
