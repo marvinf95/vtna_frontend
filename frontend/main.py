@@ -2338,11 +2338,9 @@ class UIStatisticsManager(object):
         self.__attributes_dropdown = widgets.Dropdown(description='Attribute:')
         self.__attributes_dropdown.layout.display = 'none'
         self.__attribute_plot = widgets.Output()
-        header_hbox = widgets.HBox([widgets.HTML("All statistics shown are <b>global</b>"),
-                                    help_widget(HELP_TEXT['statistics'])],
-                                   layout=widgets.Layout(justify_content='center'))
-        graph_plots_hbox.children = [widgets.VBox([header_hbox,self.__edge_bar_plot]),
-                                     widgets.VBox([self.__attributes_dropdown,self.__attribute_plot])]
+        graph_plots_hbox.children = [widgets.VBox([self.__edge_bar_plot]),
+                                     widgets.VBox([self.__attribute_plot, self.__attributes_dropdown]),
+                                     help_widget(HELP_TEXT['statistics'])]
         self.__attribute_info = None
         self.__temp_graph = None  # type: vtna.graph.TemporalGraph
 
@@ -2373,20 +2371,10 @@ class UIStatisticsManager(object):
         total_nodes = len(self.__temp_graph.get_nodes())
         total_edges = len(set(edge.get_incident_nodes()
                               for graph in self.__temp_graph.__iter__() for edge in graph.get_edges()))
-        is_filtering = True
-        is_highlighting = False
-        avg_degree = 0
-        diameter = 0
-        avg_clustering_coefficient = 0
         html = pystache.render(self.__graph_summary_template,
                                {
                                    'total_nodes': total_nodes,
                                    'total_edges': total_edges,
-                                   'is_filtering': is_filtering,
-                                   'is_highlighting': is_highlighting,
-                                   'avg_degree': avg_degree,
-                                   'diameter': diameter,
-                                   'avg_clustering_coefficient': avg_clustering_coefficient
                                })
         self.__graph_summary_html.value = html
 
@@ -2420,8 +2408,9 @@ class UIStatisticsManager(object):
         if len(attributes) >= 1:
             # Attribute drop down
             self.__attributes_dropdown.options = attributes
+            self.__attributes_dropdown.layout.width = f'{14+max(len(attribute) for attribute in attributes)}rem'
             self.__attributes_dropdown.observe(self.__build_on_attribute_change())
-            self.__attributes_dropdown.layout.display = 'block'
+            self.__attributes_dropdown.layout.display = 'flex'
             self.__build_statistics_plot(attributes[0])
 
     def __build_on_attribute_change(self):
