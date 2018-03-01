@@ -2393,33 +2393,32 @@ class UIStatisticsManager(object):
             return
         timstamps = range(0,self.__temp_graph.__len__())
         edges = [len(graph.get_edges()) for graph in self.__temp_graph.__iter__()]
-        plt.bar(timstamps,edges)
+        _ = plt.figure()
+        _ = plt.bar(timstamps, edges)
         plt.xlabel('Time step (granularity)')
         plt.ylabel('Number of edges')
         plt.title('Number of edges over time')
         with self.__edge_bar_plot:
+            ipydisplay.clear_output()
             plt.show()
 
     def __build_statistics_plot(self,attribute_value):
         selected_attribute = self.__attribute_info[attribute_value]
         attribute_values = [n.get_global_attribute(attribute_value) for n in
                             self.__temp_graph.get_nodes()]
+        _ = plt.figure()
         if selected_attribute['measurement_type'] == 'I':
-            plt.hist(attribute_values, 75, alpha=0.75)
-            plt.xlabel(attribute_value)
-            plt.ylabel('Counts')
-            plt.title(attribute_value + " distribution")
+            _ = plt.hist(attribute_values, 75, alpha=0.75)
         else:
             categories = selected_attribute['categories']
             counts = [attribute_values.count(c) for c in categories]
-            plt.barh(categories, counts, align='center')
-            plt.xlabel(attribute_value)
-            plt.ylabel('Counts')
-            plt.title(attribute_value + " distribution")
+            _ = plt.barh(categories, counts, align='center')
+        plt.xlabel(attribute_value)
+        plt.ylabel('Counts')
+        plt.title(attribute_value + " distribution")
         with self.__attribute_plot:
             ipydisplay.clear_output()
             plt.show()
-        plt.clf()
 
     def __build_attribute_dropdown(self):
         if self.__temp_graph is None:
