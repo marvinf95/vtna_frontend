@@ -7,6 +7,10 @@ USER root
 RUN apt-get update
 RUN apt-get -y install ffmpeg
 
+# Create folder for storing the data of the application
+RUN mkdir -p /usr/src/vtna/
+WORKDIR /usr/src/vtna/
+
 ## Copy data for frontend into the container
 COPY frontend ./frontend
 RUN chown -R jovyan:1000 /usr/src/vtna/
