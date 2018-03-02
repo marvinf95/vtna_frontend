@@ -826,7 +826,7 @@ class UIGraphDisplayManager(object):
 
     def display_graph(self):
         plot_div_html = plotly.offline.plot(self.__figure.get_figure(), include_plotlyjs=False,
-                                            config={'scrollZoom': True},
+                                            config={'scrollZoom': True, 'modeBarButtonsToRemove': ['sendDataToCloud'],},
                                             show_link=False, output_type='div')
         # Remove js code that would cause autoplay
         plot_div_html = re.sub("\\.then\\(function\\(\\)\\{Plotly\\.animate\\(\\'[0-9a-zA-Z-]*\\'\\)\\;\\}\\)", "",
@@ -1761,6 +1761,7 @@ class TemporalGraphFigure(object):
             'layout': {},
             'frames': []
         }
+        self.__figure_data['layout']['showlegend'] = False
         self.__figure_data['layout']['autosize'] = False
         # Substract approximate height of control widgets to fit in the box
         self.__figure_data['layout']['width'] = self.__display_size[0] - 20
