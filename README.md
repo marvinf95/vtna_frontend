@@ -1,5 +1,5 @@
 # VTNA: Visualize Network Dynamics with Attributes
-[![Binder](https://mybinder.org/badge.svg)](https://hub.mybinder.org/user/marvinf95-vtna_frontend-gs3u26rf/notebooks/frontend/vtna.ipynb)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/marvinf95/vtna_frontend/master?filepath=frontend%2Fvtna.ipynb)
 
 # What is VTNA?
 VTNA  is a [Jupyter Notebook](https://jupyter.org/) for the visualization of face-to-face networks collected over long time frames. 
