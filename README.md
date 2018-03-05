@@ -1,8 +1,9 @@
-# Visualize Network Dynamics
-![University Koblenz-Landau](frontend/images/university_koblenz_logo.jpg?raw=true "Logo of the university Koblenz-Landau")
+# VTNA: Visualize Network Dynamics with Attributes
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/marvinf95/vtna_frontend/master?filepath=https%3A%2F%2Fgithub.com%2Fmarvinf95%2Fvtna_frontend%2Fblob%2Fmaster%2Ffrontend%2Fvtna.ipynb)
 
 # What is VTNA?
-VTNA (Virtual Temporary Network with Attributes) is a [Jupyter Notebook](https://jupyter.org/) for face-to-face visualization of for example conferences. Example data can be found on [Sociopatterns](http://www.sociopatterns.org/).
+VTNA  is a [Jupyter Notebook](https://jupyter.org/) for the visualization of face-to-face networks collected over long time frames. 
+This tool focuses specifically on data collected by the [Sociopatterns](http://www.sociopatterns.org/) project.
 
 # Supported tags and respective `Dockerfile` links
 -	[`latest`, `python0.1` (*Dockerfile*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile)
