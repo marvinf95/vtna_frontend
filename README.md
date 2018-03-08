@@ -75,10 +75,11 @@ This image is based on the popular [Alpine Linux project](http://alpinelinux.org
 -	**Where to file issues**:  
 	[https://github.com/marvinf95/vtna_frontend/issues](https://github.com/marvinf95/vtna_frontend/issues)
 
--	**Maintained by**:  
-	[Students of the University Koblenz-Landau](https://www.uni-koblenz-landau.de/)
+-	Developed by [Students of the University Koblenz-Landau](https://www.uni-koblenz-landau.de)
     - [Philipp Töws](https://github.com/ptoews)
     - ...
+
+    during the Research Practical Computational Social Science (WS 17/18) under Prof. Claudia Wagner.
 
 -	**Supported Docker versions**:  
 	[the latest release](https://github.com/docker/docker-ce/releases/latest) (down to 1.6 on a best-effort basis)
