@@ -698,13 +698,6 @@ class UIGraphDisplayManager(object):
             max=100,
             layout=parameter_widget_layout
         )
-        self.__layout_parameter_PCA_p_slider = widgets.IntSlider(
-            description='p:',
-            value=25,
-            min=1,
-            max=70,
-            layout=parameter_widget_layout
-        )
 
         self.__apply_layout_button = widgets.Button(
             description='Apply',
@@ -946,8 +939,7 @@ class UIGraphDisplayManager(object):
             return self.__layout_function(
                 temp_graph=self.__temp_graph,
                 n=self.__layout_parameter_PCA_n_slider.value,
-                repel=self.__layout_parameter_PCA_repel_slider.value,
-                p=self.__layout_parameter_PCA_p_slider.value
+                repel=self.__layout_parameter_PCA_repel_slider.value
             )
 
     def __set_current_layout_widgets(self):
@@ -970,8 +962,7 @@ class UIGraphDisplayManager(object):
         ]:
             widget_list.extend([
                 self.__layout_parameter_PCA_n_slider,
-                self.__layout_parameter_PCA_repel_slider,
-                self.__layout_parameter_PCA_p_slider
+                self.__layout_parameter_PCA_repel_slider
             ])
         widget_list.extend([self.__layout_description_output, self.__apply_layout_button])
         self.__layout_vbox.children = widget_list
