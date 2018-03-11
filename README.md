@@ -76,8 +76,12 @@ This image is based on the popular [Alpine Linux project](http://alpinelinux.org
 	[https://github.com/marvinf95/vtna_frontend/issues](https://github.com/marvinf95/vtna_frontend/issues)
 
 -	Developed by [Students of the University Koblenz-Landau](https://www.uni-koblenz-landau.de)
+    - [Adam Mtarji](https://github.com/Lerixu)
+    - [Alex Baier](https://github.com/AlexBaier)
+    - [Evgeny Sinderovich](https://github.com/evsinderovich)
+    - [Kim Ballmes](https://github.com/KiMaBa)
+    - [Marvin Forster](https://github.com/marvinf95)
     - [Philipp Töws](https://github.com/ptoews)
-    - ...
 
     during the Research Practical Computational Social Science (WS 17/18) under Prof. Claudia Wagner.
 
