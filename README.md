@@ -1,9 +1,10 @@
-# VTNA: Visualize Network Dynamics with Attributes
+# VTNA: Visualize Temporal Networks with Attributes
 [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/marvinf95/vtna_frontend/master?filepath=frontend%2Fvtna.ipynb)
 
 # What is VTNA?
 VTNA  is a [Jupyter Notebook](https://jupyter.org/) for the visualization of face-to-face networks collected over long time frames. 
 This tool focuses specifically on data collected by the [Sociopatterns](http://www.sociopatterns.org/) project.
+Its main goal is to enable users to visually explore temporal graphs and create animations in shareable video formats.
 
 # Supported tags and respective `Dockerfile` links
 -	[`latest`, `python0.1` (*Dockerfile*)](https://github.com/marvinf95/vtna_frontend/blob/master/Dockerfile)
